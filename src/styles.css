@@ -1,0 +1,215 @@
+:root {
+  color: #171717;
+  background: #f7f7f5;
+  font-family:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+.fleet-shell {
+  min-height: 100vh;
+  padding: 22px 28px;
+}
+
+.fleet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fleet-wordmark {
+  color: #171717;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  text-decoration: none;
+}
+
+.history-button,
+.agent-count {
+  border: 1px solid #deded9;
+  border-radius: 10px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.history-button {
+  padding: 9px 13px;
+  font-size: 13px;
+  font-weight: 520;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+.composer-stage {
+  display: grid;
+  width: min(100%, 720px);
+  min-height: calc(100vh - 76px);
+  margin: 0 auto;
+  place-content: center;
+  gap: 28px;
+}
+
+.intro {
+  display: grid;
+  gap: 10px;
+  text-align: center;
+}
+
+.intro h1,
+.intro p {
+  margin: 0;
+}
+
+.intro h1 {
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 520;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+}
+
+.intro p {
+  max-width: 540px;
+  margin-inline: auto;
+  color: #71716b;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.research-composer {
+  padding: 14px;
+  border: 1px solid #d9d9d4;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 4%),
+    0 12px 36px rgb(0 0 0 / 6%);
+}
+
+.research-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 112px;
+  padding: 3px 4px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  color: #171717;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.research-composer textarea::placeholder {
+  color: #9a9a94;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.agent-count {
+  padding: 7px 10px;
+  color: #5e5e58;
+  font-size: 13px;
+}
+
+.launch-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: #171717;
+  color: #ffffff;
+  cursor: pointer;
+  place-items: center;
+}
+
+.launch-button span {
+  font-size: 20px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.history-button:hover,
+.agent-count:hover {
+  border-color: #c8c8c2;
+  background: #fafaf8;
+}
+
+.launch-button:hover {
+  background: #2e2e2e;
+}
+
+.history-button:focus-visible,
+.agent-count:focus-visible,
+.launch-button:focus-visible,
+.research-composer textarea:focus-visible {
+  outline: 2px solid #171717;
+  outline-offset: 3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .fleet-shell {
+    padding: 18px;
+  }
+
+  .history-button {
+    padding: 8px 10px;
+  }
+
+  .composer-stage {
+    min-height: calc(100vh - 64px);
+  }
+
+  .intro h1 {
+    font-size: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,13 @@
+node_modules
+.output
+.tanstack
+.vite
+dist
+coverage
+playwright-report
+test-results
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
