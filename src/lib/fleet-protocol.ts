@@ -18,24 +18,24 @@ export type ToolCallId = z.infer<typeof ToolCallIdSchema>
 export const EventSeqSchema = z.number().int().positive().brand<'EventSeq'>()
 export type EventSeq = z.infer<typeof EventSeqSchema>
 
-const isPublicHttpUrl = (value: string): boolean => {
-  const url = new URL(value)
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false
-  const hostname = url.hostname
-    .toLowerCase()
-    .replace(/^\[|\]$/g, '')
-    .replace(/\.+$/, '')
-  if (
-    hostname === 'localhost' ||
-    hostname.endsWith('.localhost') ||
-    hostname.endsWith('.local') ||
-    hostname.endsWith('.internal') ||
-    hostname.includes(':')
-  ) {
-    return false
+export const isPublicIpAddress = (address: string): boolean => {
+  const normalized = address.toLowerCase().replace(/^\[|\]$/g, '')
+  if (normalized.includes(':')) {
+    if (
+      normalized === '::' ||
+      normalized === '::1' ||
+      /^f[cd]/.test(normalized) ||
+      /^fe[89ab]/.test(normalized) ||
+      /^ff/.test(normalized) ||
+      /^2001:db8(?::|$)/.test(normalized)
+    ) {
+      return false
+    }
+    const mappedIpv4 = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1]
+    return mappedIpv4 ? isPublicIpAddress(mappedIpv4) : true
   }
-  const octets = hostname.split('.').map(Number)
-  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part))) return true
+  const octets = normalized.split('.').map(Number)
+  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part))) return false
   const [first, second] = octets
   if (first === undefined || second === undefined) return false
   return !(
@@ -50,6 +50,27 @@ const isPublicHttpUrl = (value: string): boolean => {
     (first === 203 && second === 0) ||
     first >= 224
   )
+}
+
+const isPublicHttpUrl = (value: string): boolean => {
+  const url = new URL(value)
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false
+  const hostname = url.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.+$/, '')
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal')
+  ) {
+    return false
+  }
+  if (hostname.includes(':') || /^\d+(?:\.\d+){3}$/.test(hostname)) {
+    return isPublicIpAddress(hostname)
+  }
+  return hostname.includes('.')
 }
 
 export const HttpUrlSchema = z.string().url().refine(isPublicHttpUrl, {

@@ -31,4 +31,22 @@ describe('BrowserbaseResearchTools', () => {
     ).rejects.toThrow('public HTTP or HTTPS')
     expect(request).not.toHaveBeenCalled()
   })
+
+  it('rejects hostnames that resolve to private infrastructure', async () => {
+    const request = vi.fn()
+    vi.stubGlobal('fetch', request)
+    const tools = new BrowserbaseResearchTools(
+      'test-key',
+      'https://api.browserbase.com/v1',
+      async () => ['169.254.169.254'],
+    )
+
+    await expect(
+      tools.execute(
+        { kind: 'fetch', url: 'https://instance-data.example/path' },
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow('exclusively to public addresses')
+    expect(request).not.toHaveBeenCalled()
+  })
 })

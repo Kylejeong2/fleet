@@ -1,5 +1,6 @@
+import { lookup } from 'node:dns/promises'
 import { z } from 'zod'
-import { HttpUrlSchema } from '../../../lib/fleet-protocol'
+import { HttpUrlSchema, isPublicIpAddress } from '../../../lib/fleet-protocol'
 import type { ResearchToolCall, ResearchToolResult, ResearchTools } from '../ports'
 
 const SearchResponseSchema = z.object({
@@ -20,10 +21,16 @@ const FetchResponseSchema = z.object({
 const MAX_SEARCH_RESULTS = 8
 const MAX_FETCH_CHARACTERS = 24_000
 
+type HostResolver = (hostname: string) => Promise<string[]>
+
+const resolveHost: HostResolver = async (hostname) =>
+  (await lookup(hostname, { all: true, verbatim: true })).map((result) => result.address)
+
 export class BrowserbaseResearchTools implements ResearchTools {
   constructor(
     private readonly apiKey: string,
     private readonly baseUrl = 'https://api.browserbase.com/v1',
+    private readonly resolver: HostResolver = resolveHost,
   ) {}
 
   async execute(call: ResearchToolCall, signal: AbortSignal): Promise<ResearchToolResult> {
@@ -43,9 +50,13 @@ export class BrowserbaseResearchTools implements ResearchTools {
       }
     }
     const url = HttpUrlSchema.parse(call.url)
+    const addresses = await this.resolver(new URL(url).hostname)
+    if (addresses.length === 0 || addresses.some((address) => !isPublicIpAddress(address))) {
+      throw new Error('Fetch hostname did not resolve exclusively to public addresses')
+    }
     const response = await this.#request('/fetch', {
       url,
-      allowRedirects: true,
+      allowRedirects: false,
       allowInsecureSsl: false,
       proxies: false,
     }, signal)

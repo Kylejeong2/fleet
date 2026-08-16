@@ -23,6 +23,8 @@ Two earlier runs exposed and isolated Sail's ASAP-only request constraint. Backg
 
 This is an integration smoke test, not a permanent live test suite. Reproduce it with the request above after setting `SAIL_API_KEY` and `BROWSERBASE_API_KEY`. Paid profiles never fall back to deterministic workers or tools.
 
+After resolved-address validation was added, run `a55022c1-e202-4eca-8783-1df9fe9b4857` repeated the live path with one worker. It completed in 10 seconds with one successful Search, three successful non-redirecting Fetch calls to `sailresearch.com`, a successful worker finding, and a 1,429-character deterministic synthesis. This verifies that the public-DNS guard still permits the intended Browserbase workflow.
+
 ## AI Gateway
 
 The `openai/gpt-5.6-sol` adapter builds and type-checks through Vercel AI SDK. It was not called live because `AI_GATEWAY_API_KEY` was unavailable during verification. Selecting the `live` profile without that key returns an explicit readiness error before provider work begins.

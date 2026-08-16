@@ -4,6 +4,7 @@ import {
   createEventSeq,
   createRunId,
   HttpUrlSchema,
+  isPublicIpAddress,
   type FleetEvent,
   type RunSnapshot,
 } from '../../lib/fleet-protocol'
@@ -31,6 +32,11 @@ describe('Fleet reducer', () => {
     expect(() => HttpUrlSchema.parse('http://localhost/private')).toThrow()
     expect(() => HttpUrlSchema.parse('http://localhost./private')).toThrow()
     expect(() => HttpUrlSchema.parse('http://[::1]/private')).toThrow()
+    expect(() => HttpUrlSchema.parse('http://instance-data/private')).toThrow()
+    expect(isPublicIpAddress('93.184.216.34')).toBe(true)
+    expect(isPublicIpAddress('2606:2800:220:1:248:1893:25c8:1946')).toBe(true)
+    expect(isPublicIpAddress('169.254.169.254')).toBe(false)
+    expect(isPublicIpAddress('fd00::1')).toBe(false)
   })
 
   it('replays ordered events into a snapshot', () => {

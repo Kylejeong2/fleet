@@ -23,7 +23,7 @@ SAIL_RESEARCH_MODEL=deepseek-ai/DeepSeek-V4-Flash
 
 ## Browserbase tools
 
-The Search and Fetch adapters send requests to Browserbase, validate the external response, and return bounded display-safe content. Fetch accepts only public HTTP and HTTPS URLs. Literal loopback, private-network, link-local, and IPv6 hosts are rejected before a provider call. Browserbase remains responsible for enforcing the same boundary after DNS resolution and redirects.
+The Search and Fetch adapters send requests to Browserbase, validate the external response, and return bounded display-safe content. Fetch accepts only public HTTP and HTTPS URLs. Fleet resolves the hostname immediately before the provider call and requires every returned IPv4 or IPv6 address to be public. Browserbase redirects are disabled so the validated destination cannot redirect into a private network. Deployments must use a trusted DNS resolver because DNS validation and the remote Fetch request occur in separate network contexts.
 
 Fleet avoids automatic retries after an ambiguous provider failure because the original paid request may have been accepted. The failure remains visible in the agent trace.
 
