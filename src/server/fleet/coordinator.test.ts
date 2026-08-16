@@ -1,0 +1,111 @@
+import { describe, expect, it } from 'vitest'
+import { createRunId, type CreateRunInput } from '../../lib/fleet-protocol'
+import { RunCoordinator } from './coordinator'
+import { FleetJournal } from './journal'
+import type {
+  ResearchToolCall,
+  ResearchToolResult,
+  ResearchTools,
+  Synthesizer,
+  SynthesisInput,
+  WorkerModel,
+  WorkerResponse,
+  WorkerTurn,
+} from './ports'
+import { replayEvents } from './reducer'
+
+class TrackingWorker implements WorkerModel {
+  readonly name = 'tracking-worker'
+  active = 0
+  maximum = 0
+
+  async respond(turn: WorkerTurn): Promise<WorkerResponse> {
+    this.active += 1
+    this.maximum = Math.max(this.maximum, this.active)
+    await new Promise((resolve) => setTimeout(resolve, 8))
+    this.active -= 1
+    if (turn.agentId.endsWith('agent-2')) throw new Error('isolated worker failure')
+    return { kind: 'finding', finding: `Finding from ${turn.objective}` }
+  }
+}
+
+class ToolWorker implements WorkerModel {
+  readonly name = 'tool-worker'
+
+  async respond(turn: WorkerTurn): Promise<WorkerResponse> {
+    return turn.history.length === 0
+      ? { kind: 'tool-call', call: { kind: 'search', query: turn.question } }
+      : { kind: 'finding', finding: 'Finding after search' }
+  }
+}
+
+class Tools implements ResearchTools {
+  async execute(call: ResearchToolCall): Promise<ResearchToolResult> {
+    if (call.kind === 'fetch') {
+      return { kind: 'fetch', url: call.url, title: 'Page', text: 'Body' }
+    }
+    return {
+      kind: 'search',
+      results: [{ title: 'Source', url: 'https://example.com', snippet: 'Evidence' }],
+    }
+  }
+}
+
+class CountingSynthesizer implements Synthesizer {
+  readonly name = 'counting-synthesizer'
+  handoffs = 0
+
+  async *stream(input: SynthesisInput): AsyncIterable<string> {
+    this.handoffs += 1
+    yield `Synthesized ${input.findings.length} findings`
+  }
+}
+
+const runInput = (agentCount: number, concurrency: number): CreateRunInput => ({
+  question: 'What evidence exists?',
+  agentCount,
+  concurrency,
+  profile: 'development',
+})
+
+const createAcceptedRun = (journal: FleetJournal, input: CreateRunInput) => {
+  const runId = createRunId()
+  journal.createRun({ runId, input, idempotencyKey: null })
+  return runId
+}
+
+describe('RunCoordinator', () => {
+  it('honors the exact concurrency bound, isolates failure, and synthesizes once', async () => {
+    const journal = new FleetJournal(':memory:')
+    const worker = new TrackingWorker()
+    const synthesizer = new CountingSynthesizer()
+    const input = runInput(7, 3)
+    const runId = createAcceptedRun(journal, input)
+    await new RunCoordinator(journal, worker, new Tools(), synthesizer).run(runId, input)
+    const snapshot = replayEvents(journal.read(runId))
+    expect(worker.maximum).toBe(3)
+    expect(snapshot?.agents.filter((agent) => agent.status === 'failed')).toHaveLength(1)
+    expect(snapshot?.agents.filter((agent) => agent.status === 'succeeded')).toHaveLength(6)
+    expect(snapshot?.status).toBe('completed')
+    expect(synthesizer.handoffs).toBe(1)
+    journal.close()
+  })
+
+  it('records running and succeeded tool trace states through the journal', async () => {
+    const journal = new FleetJournal(':memory:')
+    const input = runInput(1, 1)
+    const runId = createAcceptedRun(journal, input)
+    await new RunCoordinator(
+      journal,
+      new ToolWorker(),
+      new Tools(),
+      new CountingSynthesizer(),
+    ).run(runId, input)
+    const events = journal.read(runId)
+    expect(events.some((event) => event.kind === 'tool.started')).toBe(true)
+    expect(events.some((event) => event.kind === 'tool.succeeded')).toBe(true)
+    const snapshot = replayEvents(events)
+    expect(snapshot?.agents[0]?.trace[0]?.status).toBe('succeeded')
+    journal.close()
+  })
+})

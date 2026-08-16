@@ -4,6 +4,7 @@ node_modules
 .vite
 dist
 coverage
+.fleet
 playwright-report
 test-results
 .env

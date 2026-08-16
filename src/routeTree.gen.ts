@@ -4,33 +4,68 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiV1RunsRouteImport } from './routes/api/v1/runs'
+import { Route as ApiV1RunsRunIdRouteImport } from './routes/api/v1/runs/$runId'
+import { Route as ApiV1RunsRunIdEventsRouteImport } from './routes/api/v1/runs/$runId/events'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1RunsRoute = ApiV1RunsRouteImport.update({
+  id: '/api/v1/runs',
+  path: '/api/v1/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1RunsRunIdRoute = ApiV1RunsRunIdRouteImport.update({
+  id: '/$runId',
+  path: '/$runId',
+  getParentRoute: () => ApiV1RunsRoute,
+} as any)
+const ApiV1RunsRunIdEventsRoute = ApiV1RunsRunIdEventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => ApiV1RunsRunIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/v1/runs': typeof ApiV1RunsRouteWithChildren
+  '/api/v1/runs/$runId': typeof ApiV1RunsRunIdRouteWithChildren
+  '/api/v1/runs/$runId/events': typeof ApiV1RunsRunIdEventsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/v1/runs': typeof ApiV1RunsRouteWithChildren
+  '/api/v1/runs/$runId': typeof ApiV1RunsRunIdRouteWithChildren
+  '/api/v1/runs/$runId/events': typeof ApiV1RunsRunIdEventsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/v1/runs': typeof ApiV1RunsRouteWithChildren
+  '/api/v1/runs/$runId': typeof ApiV1RunsRunIdRouteWithChildren
+  '/api/v1/runs/$runId/events': typeof ApiV1RunsRunIdEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    '/' | '/api/v1/runs' | '/api/v1/runs/$runId' | '/api/v1/runs/$runId/events'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    '/' | '/api/v1/runs' | '/api/v1/runs/$runId' | '/api/v1/runs/$runId/events'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/v1/runs'
+    | '/api/v1/runs/$runId'
+    | '/api/v1/runs/$runId/events'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiV1RunsRoute: typeof ApiV1RunsRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -42,11 +77,57 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/runs': {
+      id: '/api/v1/runs'
+      path: '/api/v1/runs'
+      fullPath: '/api/v1/runs'
+      preLoaderRoute: typeof ApiV1RunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/runs/$runId': {
+      id: '/api/v1/runs/$runId'
+      path: '/$runId'
+      fullPath: '/api/v1/runs/$runId'
+      preLoaderRoute: typeof ApiV1RunsRunIdRouteImport
+      parentRoute: typeof ApiV1RunsRoute
+    }
+    '/api/v1/runs/$runId/events': {
+      id: '/api/v1/runs/$runId/events'
+      path: '/events'
+      fullPath: '/api/v1/runs/$runId/events'
+      preLoaderRoute: typeof ApiV1RunsRunIdEventsRouteImport
+      parentRoute: typeof ApiV1RunsRunIdRoute
+    }
   }
 }
 
+interface ApiV1RunsRunIdRouteChildren {
+  ApiV1RunsRunIdEventsRoute: typeof ApiV1RunsRunIdEventsRoute
+}
+
+const ApiV1RunsRunIdRouteChildren: ApiV1RunsRunIdRouteChildren = {
+  ApiV1RunsRunIdEventsRoute: ApiV1RunsRunIdEventsRoute,
+}
+
+const ApiV1RunsRunIdRouteWithChildren = ApiV1RunsRunIdRoute._addFileChildren(
+  ApiV1RunsRunIdRouteChildren,
+)
+
+interface ApiV1RunsRouteChildren {
+  ApiV1RunsRunIdRoute: typeof ApiV1RunsRunIdRouteWithChildren
+}
+
+const ApiV1RunsRouteChildren: ApiV1RunsRouteChildren = {
+  ApiV1RunsRunIdRoute: ApiV1RunsRunIdRouteWithChildren,
+}
+
+const ApiV1RunsRouteWithChildren = ApiV1RunsRoute._addFileChildren(
+  ApiV1RunsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiV1RunsRoute: ApiV1RunsRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
