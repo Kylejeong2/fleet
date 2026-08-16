@@ -120,6 +120,19 @@ const ToolTraceSchema = z.discriminatedUnion('status', [
 ])
 export type ToolTrace = z.infer<typeof ToolTraceSchema>
 
+const ReasoningEntrySchema = z.object({
+  sequence: EventSeqSchema,
+  at: z.string().datetime(),
+  text: z.string(),
+})
+
+const OrchestratorEntrySchema = z.object({
+  sequence: EventSeqSchema,
+  at: z.string().datetime(),
+  phase: z.enum(['planning', 'dispatch', 'review']),
+  message: z.string(),
+})
+
 const EventBase = {
   runId: RunIdSchema,
   sequence: EventSeqSchema,
@@ -147,6 +160,18 @@ export const FleetEventSchema = z.discriminatedUnion('kind', [
     kind: z.literal('agent.activity'),
     agentId: AgentIdSchema,
     activity: z.string(),
+  }),
+  z.object({
+    ...EventBase,
+    kind: z.literal('agent.reasoning'),
+    agentId: AgentIdSchema,
+    reasoning: z.string(),
+  }),
+  z.object({
+    ...EventBase,
+    kind: z.literal('orchestrator.activity'),
+    phase: z.enum(['planning', 'dispatch', 'review']),
+    message: z.string(),
   }),
   z.object({
     ...EventBase,
@@ -194,6 +219,7 @@ const AgentSnapshotSchema = z.object({
   objective: z.string(),
   status: z.enum(['planned', 'running', 'succeeded', 'failed']),
   activity: z.string(),
+  reasoning: z.array(ReasoningEntrySchema),
   trace: z.array(ToolTraceSchema),
   finding: z.string().nullable(),
   error: z.string().nullable(),
@@ -207,6 +233,7 @@ export const RunSnapshotSchema = z.object({
   concurrency: z.number().int(),
   profile: RunProfileSchema,
   status: z.enum(['running', 'synthesizing', 'completed', 'failed']),
+  orchestratorTrace: z.array(OrchestratorEntrySchema),
   agents: z.array(AgentSnapshotSchema),
   partialAnswer: z.string(),
   finalAnswer: z.string().nullable(),

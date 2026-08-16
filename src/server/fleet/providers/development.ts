@@ -30,16 +30,24 @@ export class DevelopmentWorkerModel implements WorkerModel {
     if (turn.history.length === 0) {
       return {
         kind: 'tool-call',
+        reasoning: `I need a broad evidence pass for “${turn.objective}”, so I’ll start with a targeted web search.`,
         call: { kind: 'search', query: `${turn.question} ${turn.objective}`.slice(0, 200) },
       }
     }
     const search = turn.history.find((item) => item.result.kind === 'search')
     if (turn.history.length === 1 && search?.result.kind === 'search') {
       const first = search.result.results[0]
-      if (first) return { kind: 'tool-call', call: { kind: 'fetch', url: first.url } }
+      if (first) {
+        return {
+          kind: 'tool-call',
+          reasoning: 'The search surfaced a directly relevant source. I’ll open it and inspect the supporting details.',
+          call: { kind: 'fetch', url: first.url },
+        }
+      }
     }
     return {
       kind: 'finding',
+      reasoning: 'The collected evidence is sufficient to report a concise source-backed finding to the orchestrator.',
       finding: `${turn.objective}: the development evidence indicates a distinct, source-backed angle for “${turn.question}”.`,
     }
   }

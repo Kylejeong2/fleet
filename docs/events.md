@@ -10,6 +10,8 @@ The ordered event journal is Fleet's source of truth. The server and browser der
 | `agent.planned` | The coordinator assigned one distinct research objective. |
 | `agent.started` | A worker acquired a bounded-concurrency slot. |
 | `agent.activity` | The worker changed its public status. |
+| `agent.reasoning` | One model-authored reasoning summary or tool rationale was committed. |
+| `orchestrator.activity` | The orchestrator exposed a planning, dispatch, or review step. |
 | `tool.started` | Search or Fetch began. |
 | `tool.succeeded` | A validated, display-safe tool result was recorded. |
 | `tool.failed` | A tool reached an explicit failure state. |
@@ -26,7 +28,7 @@ Every event contains `runId`, a positive integer `sequence`, and an ISO 8601 `at
 
 Tool state is a discriminated union. A running trace has an input and start time. A succeeded trace adds a typed Search or Fetch result and completion time. A failed trace adds a public error and completion time. These states cannot accidentally contain both a result and an error.
 
-The interface renders only these committed facts. Sail Responses calls are currently non-streaming, so worker cards show activity transitions rather than invented worker-token animation. Synthesis deltas are emitted only when the selected synthesizer actually streams text.
+The interface renders only these committed facts. Sail Responses calls are currently non-streaming, so an agent reasoning update appears when one model response completes, immediately before its resulting tool transition. Fleet records only model-provided reasoning summaries and concise tool rationales; it does not invent token animation or expose hidden chain-of-thought. Synthesis deltas are emitted only when the selected synthesizer actually streams text.
 
 ## Replay rules
 

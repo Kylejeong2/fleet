@@ -1,8 +1,8 @@
 import type { AgentId, SearchResult } from '../../lib/fleet-protocol'
 
 export type ResearchToolCall =
-  | { kind: 'search'; query: string }
-  | { kind: 'fetch'; url: string }
+  | { kind: 'search'; query: string; reasoning?: string }
+  | { kind: 'fetch'; url: string; reasoning?: string }
 
 export type ResearchToolResult =
   | { kind: 'search'; results: SearchResult[] }
@@ -20,8 +20,8 @@ export type WorkerTurn = {
 }
 
 export type WorkerResponse =
-  | { kind: 'tool-call'; call: ResearchToolCall }
-  | { kind: 'finding'; finding: string }
+  | { kind: 'tool-call'; call: ResearchToolCall; reasoning?: string }
+  | { kind: 'finding'; finding: string; reasoning?: string }
 
 export interface WorkerModel {
   readonly name: string

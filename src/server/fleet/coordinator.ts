@@ -78,6 +78,13 @@ export class RunCoordinator {
       question: input.question,
     })
     try {
+      this.journal.append(runId, (metadata) => ({
+        kind: 'orchestrator.activity',
+        runId,
+        ...metadata,
+        phase: 'planning',
+        message: `Breaking the question into ${input.agentCount} independent research ${input.agentCount === 1 ? 'angle' : 'angles'} before dispatch.`,
+      }))
       const assignments = planResearchLenses(input.agentCount).map((objective, index) => ({
         agentId: createAgentId(runId, index),
         objective,
@@ -94,6 +101,13 @@ export class RunCoordinator {
         run: runId,
         assignments: assignments.length,
       })
+      this.journal.append(runId, (metadata) => ({
+        kind: 'orchestrator.activity',
+        runId,
+        ...metadata,
+        phase: 'dispatch',
+        message: `Invoking ${assignments.length} ${assignments.length === 1 ? 'subagent' : 'subagents'} with up to ${input.concurrency} working in parallel.`,
+      }))
 
       let cursor = 0
       const findings: SynthesisInput['findings'] = []
@@ -115,6 +129,13 @@ export class RunCoordinator {
         },
       )
       await Promise.all(runners)
+      this.journal.append(runId, (metadata) => ({
+        kind: 'orchestrator.activity',
+        runId,
+        ...metadata,
+        phase: 'review',
+        message: `Reviewing ${findings.length} completed findings before final synthesis.`,
+      }))
       if (findings.length === 0) {
         fleetLog('error', 'run.failed', {
           run: runId,
@@ -236,6 +257,16 @@ export class RunCoordinator {
           response: response.kind,
           durationMs: Date.now() - workerStartedAt,
         })
+        const reasoning = response.reasoning?.trim() || (response.kind === 'tool-call'
+          ? `Selected ${response.call.kind === 'search' ? 'Search' : 'Fetch'} as the next evidence step.`
+          : 'Evidence review is complete; reporting the finding to the orchestrator.')
+        this.journal.append(args.runId, (metadata) => ({
+          kind: 'agent.reasoning',
+          runId: args.runId,
+          agentId: args.agentId,
+          ...metadata,
+          reasoning,
+        }))
         if (response.kind === 'finding') {
           this.journal.append(args.runId, (metadata) => ({
             kind: 'agent.succeeded',

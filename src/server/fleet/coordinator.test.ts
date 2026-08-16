@@ -34,8 +34,8 @@ class ToolWorker implements WorkerModel {
 
   async respond(turn: WorkerTurn): Promise<WorkerResponse> {
     return turn.history.length === 0
-      ? { kind: 'tool-call', call: { kind: 'search', query: turn.question } }
-      : { kind: 'finding', finding: 'Finding after search' }
+      ? { kind: 'tool-call', call: { kind: 'search', query: turn.question }, reasoning: 'I need a primary source first.' }
+      : { kind: 'finding', finding: 'Finding after search', reasoning: 'The source is sufficient to report.' }
   }
 }
 
@@ -126,10 +126,25 @@ describe('RunCoordinator', () => {
       synthesizer,
     ).run(runId, input)
     const events = journal.read(runId)
+    expect(events.filter((event) => event.kind === 'orchestrator.activity').map((event) => event.phase)).toEqual([
+      'planning',
+      'dispatch',
+      'review',
+    ])
+    expect(events.filter((event) => event.kind === 'agent.reasoning')).toHaveLength(2)
     expect(events.some((event) => event.kind === 'tool.started')).toBe(true)
     expect(events.some((event) => event.kind === 'tool.succeeded')).toBe(true)
     const snapshot = replayEvents(events)
     expect(snapshot?.agents[0]?.trace[0]?.status).toBe('succeeded')
+    expect(snapshot?.agents[0]?.reasoning.map((entry) => entry.text)).toEqual([
+      'I need a primary source first.',
+      'The source is sufficient to report.',
+    ])
+    expect(snapshot?.orchestratorTrace.map((entry) => entry.phase)).toEqual([
+      'planning',
+      'dispatch',
+      'review',
+    ])
     expect(synthesizer.lastInput?.findings[0]?.agentId).toBe(snapshot?.agents[0]?.id)
     expect(synthesizer.lastInput?.findings[0]?.sources).toEqual([
       { title: 'Source', url: 'https://example.com' },

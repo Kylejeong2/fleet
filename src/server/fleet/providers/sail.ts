@@ -21,8 +21,21 @@ const MessageSchema = z.object({
   ),
 })
 
-const SearchArgumentsSchema = z.object({ query: z.string().min(1).max(200) })
-const FetchArgumentsSchema = z.object({ url: HttpUrlSchema })
+const ReasoningSchema = z.object({
+  type: z.literal('reasoning'),
+  summary: z.array(z.object({ text: z.string() }).passthrough()).default([]),
+  content: z.array(z.object({ text: z.string() }).passthrough()).default([]),
+}).passthrough()
+
+const ToolReasoningSchema = z.string().trim().min(1).max(500)
+const SearchArgumentsSchema = z.object({
+  query: z.string().min(1).max(200),
+  reasoning: ToolReasoningSchema,
+})
+const FetchArgumentsSchema = z.object({
+  url: HttpUrlSchema,
+  reasoning: ToolReasoningSchema,
+})
 const MAX_RESEARCH_TOOL_CALLS = 3
 
 const sleep = (milliseconds: number, signal: AbortSignal): Promise<void> =>
@@ -67,8 +80,11 @@ export class SailWorkerModel implements WorkerModel {
               strict: true,
               parameters: {
                 type: 'object',
-                properties: { query: { type: 'string' } },
-                required: ['query'],
+                properties: {
+                  query: { type: 'string' },
+                  reasoning: { type: 'string', description: 'One concise sentence explaining why this search is the next research step.' },
+                },
+                required: ['query', 'reasoning'],
                 additionalProperties: false,
               },
             },
@@ -79,8 +95,11 @@ export class SailWorkerModel implements WorkerModel {
               strict: true,
               parameters: {
                 type: 'object',
-                properties: { url: { type: 'string' } },
-                required: ['url'],
+                properties: {
+                  url: { type: 'string' },
+                  reasoning: { type: 'string', description: 'One concise sentence explaining why this source should be opened next.' },
+                },
+                required: ['url', 'reasoning'],
                 additionalProperties: false,
               },
             },
@@ -102,14 +121,31 @@ export class SailWorkerModel implements WorkerModel {
       payload = ResponseSchema.parse(await next.json())
     }
     if (payload.status !== 'completed') throw new Error(`Sail response ended as ${payload.status}`)
+    const reasoning = payload.output
+      .map((item) => ReasoningSchema.safeParse(item))
+      .filter((item) => item.success)
+      .flatMap((item) => [...item.data.summary, ...item.data.content])
+      .map((item) => item.text)
+      .join('\n')
+      .trim()
     for (const item of payload.output) {
       const functionCall = FunctionCallSchema.safeParse(item)
       if (!functionCall.success) continue
       const parsedArguments: unknown = JSON.parse(functionCall.data.arguments)
       if (functionCall.data.name === 'search') {
-        return { kind: 'tool-call', call: { kind: 'search', ...SearchArgumentsSchema.parse(parsedArguments) } }
+        const arguments_ = SearchArgumentsSchema.parse(parsedArguments)
+        return {
+          kind: 'tool-call',
+          call: { kind: 'search', ...arguments_ },
+          reasoning: reasoning || arguments_.reasoning,
+        }
       }
-      return { kind: 'tool-call', call: { kind: 'fetch', ...FetchArgumentsSchema.parse(parsedArguments) } }
+      const arguments_ = FetchArgumentsSchema.parse(parsedArguments)
+      return {
+        kind: 'tool-call',
+        call: { kind: 'fetch', ...arguments_ },
+        reasoning: reasoning || arguments_.reasoning,
+      }
     }
     const finding = payload.output
       .map((item) => MessageSchema.safeParse(item))
@@ -119,7 +155,7 @@ export class SailWorkerModel implements WorkerModel {
       .join('')
       .trim()
     if (!finding) throw new Error('Sail returned no finding or tool call')
-    return { kind: 'finding', finding }
+    return { kind: 'finding', finding, ...(reasoning ? { reasoning } : {}) }
   }
 
   #prompt(turn: WorkerTurn): string {
@@ -130,7 +166,7 @@ export class SailWorkerModel implements WorkerModel {
       `Evidence already collected: ${JSON.stringify(turn.history)}`,
       turn.history.length >= MAX_RESEARCH_TOOL_CALLS
         ? 'The research tool budget is exhausted. Return a concise source-aware finding now. Do not request another tool.'
-        : `Use Search and Fetch when useful. You have ${MAX_RESEARCH_TOOL_CALLS - turn.history.length} tool calls remaining. Return a concise source-aware finding as soon as you have enough evidence.`,
+        : `Use Search and Fetch when useful. Every tool call must include one concise sentence explaining why that tool is the next research step. You have ${MAX_RESEARCH_TOOL_CALLS - turn.history.length} tool calls remaining. Return a concise source-aware finding as soon as you have enough evidence.`,
     ].join('\n\n')
   }
 }

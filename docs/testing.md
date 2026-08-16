@@ -8,11 +8,11 @@ Fleet tests the event invariant first, then the visible experience.
 pnpm check
 ```
 
-This command runs TypeScript validation, Vitest, and the production build. Unit and integration coverage includes ordered reduction, duplicate and gap handling, journal idempotency, bounded concurrency, isolated worker failure, recoverable tool failure, Search and Fetch trace transitions, source and agent citation handoff, and exactly one synthesis phase.
+This command runs TypeScript validation, Vitest, and the production build. Unit and integration coverage includes ordered reduction, duplicate and gap handling, journal idempotency, bounded concurrency, isolated worker failure, recoverable tool failure, orchestrator planning/dispatch/review, model-authored reasoning preservation, Search and Fetch trace transitions, source and agent citation handoff, and exactly one synthesis phase.
 
 ## Browser verification
 
-Run `pnpm dev`, then use the Browser plugin to submit a prompt, observe the orchestrator without an automatic modal, open the fleet manually, inspect an agent trace, close it, and wait for the single synthesized answer. The same command serves both the client and the API routes.
+Run `pnpm dev`, then use the Browser plugin to submit a prompt and confirm the follow-up composer clears. Open the fleet manually, inspect the expanded orchestrator reasoning stream, verify a model reasoning update appears before its running tool call, switch among agent traces, close the modal, and confirm the synthesized answer continues growing from real stream deltas. The same command serves both the client and the API routes.
 
 ## Live provider smoke test
 

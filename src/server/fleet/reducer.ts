@@ -32,6 +32,14 @@ const updateAgent = (
         return { ...agent, status: 'running', activity: 'Starting research' }
       case 'agent.activity':
         return { ...agent, activity: event.activity }
+      case 'agent.reasoning':
+        return {
+          ...agent,
+          reasoning: [
+            ...agent.reasoning,
+            { sequence: event.sequence, at: event.at, text: event.reasoning },
+          ],
+        }
       case 'tool.started':
       case 'tool.succeeded':
       case 'tool.failed':
@@ -78,6 +86,7 @@ export const reduceEvent = (snapshot: RunSnapshot, event: FleetEvent): ReplayRes
             objective: event.objective,
             status: 'planned',
             activity: 'Waiting to start',
+            reasoning: [],
             trace: [],
             finding: null,
             error: null,
@@ -87,12 +96,27 @@ export const reduceEvent = (snapshot: RunSnapshot, event: FleetEvent): ReplayRes
       break
     case 'agent.started':
     case 'agent.activity':
+    case 'agent.reasoning':
     case 'tool.started':
     case 'tool.succeeded':
     case 'tool.failed':
     case 'agent.succeeded':
     case 'agent.failed':
       next = { ...snapshot, agents: updateAgent(snapshot.agents, event) }
+      break
+    case 'orchestrator.activity':
+      next = {
+        ...snapshot,
+        orchestratorTrace: [
+          ...snapshot.orchestratorTrace,
+          {
+            sequence: event.sequence,
+            at: event.at,
+            phase: event.phase,
+            message: event.message,
+          },
+        ],
+      }
       break
     case 'synthesis.started':
       next = { ...snapshot, status: 'synthesizing', synthesizer: event.synthesizer }
@@ -127,6 +151,7 @@ export const replayEvents = (events: FleetEvent[]): RunSnapshot | null => {
     concurrency: accepted.concurrency,
     profile: accepted.profile,
     status: 'running',
+    orchestratorTrace: [],
     agents: [],
     partialAnswer: '',
     finalAnswer: null,
