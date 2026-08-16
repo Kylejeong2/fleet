@@ -82,6 +82,7 @@ function FleetHome() {
     if (!snapshot || snapshot.status === 'completed' || snapshot.status === 'failed') {
       return
     }
+    // Subscribe once per run. Reconnecting on every sequence would replay events and churn the UI.
     const source = new EventSource(
       `/api/v1/runs/${snapshot.id}/events?after=${snapshot.latestSequence}`,
     )
