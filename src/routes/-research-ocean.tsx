@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, type CSSProperties, type MutableRefObject } from 'react'
 import { useReducedMotion } from 'motion/react'
 import * as THREE from 'three'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import type { AgentSnapshot, RunSnapshot } from '../lib/fleet-protocol'
 
 const MAX_VISIBLE_BOATS = 50
@@ -23,18 +26,15 @@ type OceanAgent = {
 type OceanState = {
   agents: OceanAgent[]
   complete: boolean
-  launching: boolean
   synthesizing: boolean
 }
 
 export function ResearchOcean({
   snapshot,
   onOpenAgent,
-  launching = false,
 }: {
   snapshot?: RunSnapshot
   onOpenAgent?: (agentId: string) => void
-  launching?: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const prefersReducedMotion = useReducedMotion()
@@ -52,19 +52,17 @@ export function ResearchOcean({
   const liveState = useRef<OceanState>({
     agents,
     complete: snapshot?.status === 'completed',
-    launching,
     synthesizing: snapshot?.status === 'synthesizing',
   })
   const openAgent = useRef(onOpenAgent)
   liveState.current = {
     agents,
     complete: snapshot?.status === 'completed',
-    launching,
     synthesizing: snapshot?.status === 'synthesizing',
   }
   openAgent.current = onOpenAgent
 
-  useThreeOcean(canvasRef, liveState, openAgent, Boolean(prefersReducedMotion), agents.length)
+  useThreeOcean(canvasRef, liveState, openAgent, Boolean(prefersReducedMotion), agents.length, !snapshot)
 
   const completed = snapshot?.agents.filter((agent) => agent.status === 'succeeded').length ?? 0
   const active = snapshot?.agents.filter((agent) => agent.status === 'running').length ?? 0
@@ -83,6 +81,7 @@ export function ResearchOcean({
       aria-label={snapshot ? `Research map: ${active} agents active and ${completed} complete` : 'Research territories preview'}
     >
       <canvas ref={canvasRef} className="ocean-canvas" aria-hidden="true" />
+      <div className="ocean-atmosphere" aria-hidden="true" />
       <div className="ocean-vignette" aria-hidden="true" />
 
       {snapshot ? (
@@ -131,7 +130,6 @@ export function ResearchOcean({
           </div>
         </details>
       ) : null}
-
     </section>
   )
 }
@@ -142,144 +140,86 @@ function useThreeOcean(
   onOpenAgent: MutableRefObject<((agentId: string) => void) | undefined>,
   reducedMotion: boolean,
   boatCount: number,
+  hero: boolean,
 ) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75))
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true, powerPreference: 'high-performance' })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, hero ? 1.65 : 1.45))
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.35
+    renderer.toneMappingExposure = hero ? 1.16 : 1.26
+    renderer.setClearColor(0x020811, 1)
 
     const scene = new THREE.Scene()
-    scene.fog = new THREE.FogExp2(0x03111a, 0.038)
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80)
-    camera.position.set(0, 7.6, 14.5)
-    camera.lookAt(0, -0.9, -3.4)
+    scene.fog = new THREE.FogExp2(0x04121b, hero ? .026 : .034)
+    const camera = new THREE.PerspectiveCamera(hero ? 44 : 42, 1, .1, 90)
+    camera.position.set(0, hero ? 6.4 : 7.4, hero ? 14.8 : 14.2)
+    const cameraTarget = new THREE.Vector3(0, hero ? -.7 : -.9, hero ? -4.8 : -3.8)
+    camera.lookAt(cameraTarget)
 
-    const ambient = new THREE.HemisphereLight(0x9fefff, 0x021018, 1.35)
+    const composer = new EffectComposer(renderer)
+    composer.addPass(new RenderPass(scene, camera))
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), hero ? .46 : .3, .62, .78)
+    composer.addPass(bloom)
+
+    const sky = createSky()
+    scene.add(sky)
+
+    const ambient = new THREE.HemisphereLight(0x92dbea, 0x010811, 1.55)
     scene.add(ambient)
-    const keyLight = new THREE.DirectionalLight(0xbafaff, 3.2)
-    keyLight.position.set(-6, 10, 7)
-    scene.add(keyLight)
-    const coreLight = new THREE.PointLight(0x56fff1, 42, 18, 1.7)
-    coreLight.position.set(0, 1.6, 1)
-    scene.add(coreLight)
+    const moonLight = new THREE.DirectionalLight(0xc5f7ff, 3.6)
+    moonLight.position.set(8, 13, -8)
+    scene.add(moonLight)
+    const horizonLight = new THREE.PointLight(0x59e8dc, hero ? 50 : 38, 25, 1.7)
+    horizonLight.position.set(-1.5, 2.1, -7)
+    scene.add(horizonLight)
 
-    const waterGeometry = new THREE.PlaneGeometry(42, 34, 128, 96)
-    const waterMaterial = new THREE.ShaderMaterial({
-      uniforms: { uTime: { value: 0 }, uEnergy: { value: 0.45 } },
-      vertexShader: `
-        uniform float uTime;
-        varying float vWave;
-        varying float vFoam;
-        varying vec2 vUv;
-        varying vec3 vWorldPosition;
-        varying vec3 vWorldNormal;
+    const softTexture = createSoftTexture()
+    const moon = createMoon(softTexture)
+    moon.position.set(hero ? 8.4 : 7.2, hero ? 8.1 : 7.2, -24)
+    scene.add(moon)
 
-        float oceanHeight(vec2 point) {
-          float swell = sin(dot(point, normalize(vec2(1.0, .26))) * .34 + uTime * .46) * .31;
-          float crossing = sin(dot(point, normalize(vec2(-.34, 1.0))) * .58 - uTime * .37) * .18;
-          float chop = sin(dot(point, normalize(vec2(.76, .65))) * 1.18 + uTime * .72) * .075;
-          float ripple = sin(dot(point, normalize(vec2(-.82, .57))) * 2.35 - uTime * 1.08) * .026;
-          return swell + crossing + chop + ripple;
-        }
-
-        void main() {
-          vUv = uv;
-          vec3 p = position;
-          p.z += oceanHeight(p.xy);
-          vWave = p.z;
-          vFoam = smoothstep(.34, .52, p.z);
-          float epsilon = .08;
-          float slopeX = (oceanHeight(p.xy + vec2(epsilon, 0.0)) - oceanHeight(p.xy - vec2(epsilon, 0.0))) / (2.0 * epsilon);
-          float slopeY = (oceanHeight(p.xy + vec2(0.0, epsilon)) - oceanHeight(p.xy - vec2(0.0, epsilon))) / (2.0 * epsilon);
-          vWorldNormal = normalize(mat3(modelMatrix) * normalize(vec3(-slopeX, -slopeY, 1.0)));
-          vWorldPosition = (modelMatrix * vec4(p, 1.0)).xyz;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float uTime;
-        uniform float uEnergy;
-        varying float vWave;
-        varying float vFoam;
-        varying vec2 vUv;
-        varying vec3 vWorldPosition;
-        varying vec3 vWorldNormal;
-        void main() {
-          vec3 normal = normalize(vWorldNormal);
-          vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-          vec3 sunDirection = normalize(vec3(-.42, .78, .34));
-          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.2);
-          float diffuse = max(dot(normal, sunDirection), 0.0);
-          float specular = pow(max(dot(reflect(-sunDirection, normal), viewDirection), 0.0), 92.0);
-          float horizon = smoothstep(.05, .96, vUv.y);
-          float fineFoam = smoothstep(.76, 1.0, sin(vWorldPosition.x * 2.6 - vWorldPosition.z * 1.8 + uTime * .8));
-          float foam = vFoam * (.25 + fineFoam * .75);
-          vec3 abyss = vec3(.004, .035, .065);
-          vec3 waterBlue = vec3(.008, .16, .21);
-          vec3 reflectedSky = vec3(.09, .43, .48);
-          vec3 color = mix(abyss, waterBlue, diffuse * .54 + horizon * .2);
-          color = mix(color, reflectedSky, fresnel * (.42 + uEnergy * .08));
-          color += vec3(.42, .96, .91) * specular * (1.15 + uEnergy * .45);
-          color += vec3(.34, .86, .82) * foam * (.16 + uEnergy * .08);
-          color += vec3(.02, .17, .18) * max(vWave, 0.0) * .32;
-          gl_FragColor = vec4(color, .985);
-        }
-      `,
-      transparent: true,
-      side: THREE.DoubleSide,
-    })
+    const stars = createStars(hero ? 1100 : 620)
+    scene.add(stars)
+    const seaSparkles = createSeaSparkles(hero ? 430 : 210, softTexture)
+    scene.add(seaSparkles)
+    const mist = createMist(softTexture, hero)
+    scene.add(mist)
+    const waterGeometry = new THREE.PlaneGeometry(54, 42, hero ? 176 : 128, hero ? 128 : 92)
+    const waterMaterial = createWaterMaterial(hero)
     const water = new THREE.Mesh(waterGeometry, waterMaterial)
     water.rotation.x = -Math.PI / 2
-    water.position.set(0, -1.15, -3.4)
+    water.position.set(0, -1.15, -4.8)
     scene.add(water)
-
-    const starGeometry = new THREE.BufferGeometry()
-    const starPositions = new Float32Array(720 * 3)
-    for (let index = 0; index < 720; index += 1) {
-      starPositions[index * 3] = (Math.random() - .5) * 38
-      starPositions[index * 3 + 1] = 1.5 + Math.random() * 13
-      starPositions[index * 3 + 2] = -18 + Math.random() * 26
-    }
-    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
-    const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({
-      color: 0xa7fff7,
-      size: .035,
-      opacity: .72,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    }))
-    scene.add(stars)
 
     const boats: THREE.Group[] = []
     const routes: THREE.Line[] = []
     for (let index = 0; index < boatCount; index += 1) {
-      const preview = boatCount === 1 && liveState.current.agents[0]?.status === 'preview'
-      const boat = createBoat(preview ? .82 : .36)
+      const preview = hero && liveState.current.agents[0]?.status === 'preview'
+      const boat = createBoat(preview ? .6 : .34)
       boat.userData.agentIndex = index
-      boat.userData.progress = preview ? .24 : 0
-      boat.userData.velocity = 0
+      boat.userData.progress = preview ? .5 : 0
       boats.push(boat)
       scene.add(boat)
 
+      if (preview) {
+        boat.userData.anchor = new THREE.Vector3(6.55, -.78, 3.35)
+        boat.rotation.y = -.66
+        continue
+      }
+
       const territory = territories[index % territories.length]!
       const spread = ((Math.floor(index / territories.length) % 7) - 3) * .38
-      const destination = preview
-        ? new THREE.Vector3(5, -1.25, 5.4)
-        : territory.world.clone().add(new THREE.Vector3(spread, 0, (index % 4) * .32))
-      const start = preview ? new THREE.Vector3(-5, -1.28, 5.4) : new THREE.Vector3(0, -.52, 5.6)
-      const control = preview
-        ? new THREE.Vector3(0, -1.05, 5)
-        : new THREE.Vector3(destination.x * .42 + ((index % 5) - 2) * .32, .55 + (index % 3) * .12, destination.z * .28 + 1.2)
+      const destination = territory.world.clone().add(new THREE.Vector3(spread, 0, (index % 4) * .32))
+      const start = new THREE.Vector3(0, -.52, 5.6)
+      const control = new THREE.Vector3(destination.x * .42 + ((index % 5) - 2) * .32, .55 + (index % 3) * .12, destination.z * .28 + 1.2)
       const curve = new THREE.QuadraticBezierCurve3(start, control, destination)
       boat.userData.curve = curve
       const routeGeometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(44))
-      const routeMaterial = new THREE.LineBasicMaterial({ color: 0x4beadd, transparent: true, opacity: preview ? 0 : .06, blending: THREE.AdditiveBlending })
+      const routeMaterial = new THREE.LineBasicMaterial({ color: 0x4beadd, transparent: true, opacity: .06, blending: THREE.AdditiveBlending })
       const route = new THREE.Line(routeGeometry, routeMaterial)
       route.userData.agentIndex = index
       routes.push(route)
@@ -321,8 +261,18 @@ function useThreeOcean(
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect()
-      renderer.setSize(Math.max(1, rect.width), Math.max(1, rect.height), false)
-      camera.aspect = rect.width / Math.max(1, rect.height)
+      const width = Math.max(1, rect.width)
+      const height = Math.max(1, rect.height)
+      const previewBoat = hero && liveState.current.agents[0]?.status === 'preview' ? boats[0] : undefined
+      if (previewBoat) {
+        const narrow = width < 620
+        previewBoat.scale.setScalar(narrow ? .52 : .6)
+        ;(previewBoat.userData.anchor as THREE.Vector3).set(narrow ? 1.85 : 6.55, narrow ? -.82 : -.78, narrow ? 5.25 : 3.35)
+        previewBoat.rotation.y = narrow ? -.45 : -.66
+      }
+      renderer.setSize(width, height, false)
+      composer.setSize(width, height)
+      camera.aspect = width / height
       camera.updateProjectionMatrix()
     }
     const resizeObserver = new ResizeObserver(resize)
@@ -335,52 +285,68 @@ function useThreeOcean(
     const render = (timestamp?: number) => {
       timer.update(timestamp)
       const elapsed = timer.getElapsed()
+      const motionTime = reducedMotion ? 0 : elapsed
       const state = liveState.current
-      waterMaterial.uniforms.uTime!.value = reducedMotion ? 0 : elapsed
-      waterMaterial.uniforms.uEnergy!.value = state.synthesizing ? 1.35 : state.complete ? .82 : .48
-      stars.rotation.y = reducedMotion ? 0 : elapsed * .006
-      coreLight.intensity = 36 + Math.sin(elapsed * 1.4) * 7 + (state.synthesizing ? 24 : 0)
+      waterMaterial.uniforms.uTime!.value = motionTime
+      waterMaterial.uniforms.uEnergy!.value = state.synthesizing ? 1.35 : state.complete ? .8 : .48
+      ;(sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = motionTime
+      stars.rotation.y = reducedMotion ? 0 : elapsed * .004
+      seaSparkles.rotation.y = reducedMotion ? 0 : Math.sin(elapsed * .03) * .08
+      seaSparkles.position.y = reducedMotion ? 0 : Math.sin(elapsed * .21) * .035
+      mist.children.forEach((cloud, index) => {
+        if (reducedMotion) return
+        cloud.position.x += (index % 2 ? 1 : -1) * .0007
+        cloud.position.y += Math.sin(elapsed * .16 + index) * .00025
+      })
+      horizonLight.intensity = (hero ? 46 : 34) + Math.sin(elapsed * .7) * 4 + (state.synthesizing ? 18 : 0)
+      bloom.strength = (hero ? .42 : .27) + (state.synthesizing ? .14 : 0)
 
       boats.forEach((boat, index) => {
         const agent = state.agents[index]
         if (!agent) return
         const preview = agent.status === 'preview'
-        const targetProgress = preview
-          ? state.launching ? .9 : .24
-          : agent.status === 'planned'
-            ? .025
+        if (preview) {
+          boat.position.copy(boat.userData.anchor as THREE.Vector3)
+          boat.position.x += reducedMotion ? 0 : Math.sin(elapsed * .11) * .12
+          boat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.35) * .055
+          boat.rotation.z = reducedMotion ? 0 : Math.sin(elapsed * 1.05) * .025
+          boat.visible = true
+          return
+        }
+
+        const targetProgress = agent.status === 'planned'
+          ? .025
           : agent.status === 'succeeded'
             ? .1 + (index % 8) * .012
             : agent.status === 'failed'
               ? .78
               : .93
-        const travelEase = preview && state.launching ? .035 : .025 + (index % 5) * .002
-        boat.userData.progress = THREE.MathUtils.lerp(boat.userData.progress as number, targetProgress, reducedMotion ? 1 : travelEase)
+        boat.userData.progress = THREE.MathUtils.lerp(boat.userData.progress as number, targetProgress, reducedMotion ? 1 : .025 + (index % 5) * .002)
         const curve = boat.userData.curve as THREE.QuadraticBezierCurve3
         const progress = boat.userData.progress as number
         const point = curve.getPoint(progress)
         const tangent = curve.getTangent(progress)
         boat.position.copy(point)
-        boat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.75 + index * .61) * (preview ? .13 : .045)
+        boat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.75 + index * .61) * .045
         boat.rotation.y = Math.atan2(tangent.x, tangent.z)
         boat.rotation.z = reducedMotion ? 0 : Math.sin(elapsed * 1.3 + index) * .035
         const failed = agent.status === 'failed' || agent.retrying
         setBoatColor(boat, failed ? 0xff4f5e : agent.status === 'succeeded' ? 0xffd76a : 0x72fff2)
-        boat.visible = preview || agent.status !== 'planned' || index < 12
+        boat.visible = agent.status !== 'planned' || index < 12
 
         const route = routes[index]
         if (!route) return
         const routeMaterial = route.material as THREE.LineBasicMaterial
         routeMaterial.color.setHex(failed ? 0xff334c : agent.status === 'succeeded' ? 0xffd76a : 0x4beadd)
-        routeMaterial.opacity = preview ? 0 : agent.status === 'planned' ? .035 : agent.status === 'running' ? .58 : .3
+        routeMaterial.opacity = agent.status === 'planned' ? .035 : agent.status === 'running' ? .48 : .24
       })
 
       if (!reducedMotion) {
-        camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetPointer.x * .8, .025)
-        camera.position.y = THREE.MathUtils.lerp(camera.position.y, 7.6 + targetPointer.y * .34, .025)
-        camera.lookAt(0, -.9, -3.4)
+        camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetPointer.x * (hero ? .62 : .7), .018)
+        camera.position.y = THREE.MathUtils.lerp(camera.position.y, (hero ? 6.4 : 7.4) + targetPointer.y * .26, .018)
+        camera.lookAt(cameraTarget)
       }
-      renderer.render(scene, camera)
+      composer.render()
       animationFrame = requestAnimationFrame(render)
     }
     render()
@@ -396,73 +362,323 @@ function useThreeOcean(
           object.geometry.dispose()
           const materials = Array.isArray(object.material) ? object.material : [object.material]
           materials.forEach((material) => material.dispose())
+        } else if (object instanceof THREE.Sprite) {
+          object.material.dispose()
         }
       })
+      softTexture.dispose()
+      composer.dispose()
       renderer.dispose()
     }
-  }, [boatCount, canvasRef, liveState, onOpenAgent, reducedMotion])
+  }, [boatCount, canvasRef, hero, liveState, onOpenAgent, reducedMotion])
+}
+
+function createSky(): THREE.Mesh {
+  return new THREE.Mesh(
+    new THREE.SphereGeometry(48, 40, 24),
+    new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: `
+        varying vec3 vDirection;
+        void main() {
+          vDirection = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        varying vec3 vDirection;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0)), f.x), f.y);
+        }
+        void main() {
+          float height = clamp(vDirection.y * .5 + .5, 0.0, 1.0);
+          float horizon = exp(-pow((height - .46) * 7.0, 2.0));
+          vec3 zenith = vec3(.004, .018, .042);
+          vec3 middle = vec3(.012, .075, .105);
+          vec3 horizonColor = vec3(.08, .28, .31);
+          vec3 color = mix(zenith, middle, smoothstep(.28, .68, 1.0 - height));
+          color = mix(color, horizonColor, horizon * .58);
+          float auroraNoise = noise(vDirection.xz * 3.5 + vec2(uTime * .018, 0.0));
+          float aurora = smoothstep(.55, .9, auroraNoise) * smoothstep(.42, .7, height) * smoothstep(.94, .64, height);
+          color += vec3(.03, .34, .29) * aurora * .22;
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `,
+      side: THREE.BackSide,
+      depthWrite: false,
+    }),
+  )
+}
+
+function createWaterMaterial(hero: boolean): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uEnergy: { value: .48 },
+      uHero: { value: hero ? 1 : 0 },
+    },
+    vertexShader: `
+      uniform float uTime;
+      varying float vHeight;
+      varying float vSlope;
+      varying vec2 vUv;
+      varying vec3 vWorldPosition;
+      varying vec3 vWorldNormal;
+
+      float waveHeight(vec2 p) {
+        float swell = sin(dot(p, normalize(vec2(1.0, .22))) * .34 + uTime * .42) * .34;
+        float crossing = sin(dot(p, normalize(vec2(-.38, 1.0))) * .58 - uTime * .32) * .19;
+        float rolling = sin(dot(p, normalize(vec2(.72, .69))) * 1.08 + uTime * .66) * .09;
+        float chop = sin(dot(p, normalize(vec2(-.86, .51))) * 2.42 - uTime * 1.03) * .032;
+        float detail = sin(p.x * 3.7 + p.y * 2.1 + uTime * .88) * .014;
+        return swell + crossing + rolling + chop + detail;
+      }
+
+      void main() {
+        vUv = uv;
+        vec3 p = position;
+        p.z += waveHeight(p.xy);
+        float epsilon = .07;
+        float slopeX = (waveHeight(p.xy + vec2(epsilon, 0.0)) - waveHeight(p.xy - vec2(epsilon, 0.0))) / (2.0 * epsilon);
+        float slopeY = (waveHeight(p.xy + vec2(0.0, epsilon)) - waveHeight(p.xy - vec2(0.0, epsilon))) / (2.0 * epsilon);
+        vHeight = p.z;
+        vSlope = length(vec2(slopeX, slopeY));
+        vWorldNormal = normalize(mat3(modelMatrix) * normalize(vec3(-slopeX, -slopeY, 1.0)));
+        vWorldPosition = (modelMatrix * vec4(p, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform float uEnergy;
+      uniform float uHero;
+      varying float vHeight;
+      varying float vSlope;
+      varying vec2 vUv;
+      varying vec3 vWorldPosition;
+      varying vec3 vWorldNormal;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0)), f.x), f.y);
+      }
+
+      void main() {
+        vec3 normal = normalize(vWorldNormal);
+        vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+        vec3 moonDirection = normalize(vec3(.42, .82, -.38));
+        float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.4);
+        float diffuse = max(dot(normal, moonDirection), 0.0);
+        float specular = pow(max(dot(reflect(-moonDirection, normal), viewDirection), 0.0), 118.0);
+        float horizon = smoothstep(.02, .95, vUv.y);
+        float depth = smoothstep(-.36, .38, vHeight);
+        float foamNoise = noise(vWorldPosition.xz * 1.8 + vec2(uTime * .11, -uTime * .07));
+        float foam = smoothstep(.42, .67, vHeight + vSlope * .28 + foamNoise * .14);
+        float moonPath = pow(max(0.0, 1.0 - abs(vWorldPosition.x - 5.5) / (2.4 + vUv.y * 5.0)), 2.0) * smoothstep(.2, 1.0, vUv.y);
+        float glint = pow(max(0.0, sin(vWorldPosition.x * 7.2 - vWorldPosition.z * 5.4 + uTime * .45)), 18.0) * moonPath;
+        vec3 abyss = vec3(.002, .018, .036);
+        vec3 deep = vec3(.004, .075, .105);
+        vec3 surface = vec3(.018, .22, .25);
+        vec3 reflectedSky = vec3(.08, .4, .43);
+        vec3 color = mix(abyss, deep, horizon * .7 + depth * .18);
+        color = mix(color, surface, diffuse * .34 + vSlope * .09);
+        color = mix(color, reflectedSky, fresnel * (.48 + uHero * .1));
+        color += vec3(.64, .95, 1.0) * specular * (1.6 + uEnergy * .55);
+        color += vec3(.5, .96, .9) * foam * (.13 + uEnergy * .055);
+        color += vec3(.58, .9, 1.0) * glint * .16;
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+    side: THREE.DoubleSide,
+  })
+}
+
+function createStars(count: number): THREE.Points {
+  const random = seededRandom(4187)
+  const positions = new Float32Array(count * 3)
+  const colors = new Float32Array(count * 3)
+  for (let index = 0; index < count; index += 1) {
+    positions[index * 3] = (random() - .5) * 58
+    positions[index * 3 + 1] = 2.5 + random() * 17
+    positions[index * 3 + 2] = -25 + random() * 31
+    const brightness = .58 + random() * .42
+    colors[index * 3] = brightness * .76
+    colors[index * 3 + 1] = brightness * .98
+    colors[index * 3 + 2] = brightness
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  return new THREE.Points(geometry, new THREE.PointsMaterial({
+    size: .045,
+    sizeAttenuation: true,
+    vertexColors: true,
+    opacity: .82,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }))
+}
+
+function createSeaSparkles(count: number, texture: THREE.Texture): THREE.Points {
+  const random = seededRandom(9017)
+  const positions = new Float32Array(count * 3)
+  for (let index = 0; index < count; index += 1) {
+    positions[index * 3] = (random() - .5) * 32
+    positions[index * 3 + 1] = -1 + random() * .5
+    positions[index * 3 + 2] = -12 + random() * 18
+  }
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  return new THREE.Points(geometry, new THREE.PointsMaterial({
+    map: texture,
+    color: 0x7cfff2,
+    size: .075,
+    sizeAttenuation: true,
+    opacity: .32,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  }))
+}
+
+function createMoon(texture: THREE.Texture): THREE.Group {
+  const group = new THREE.Group()
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, color: 0x8edbdc, transparent: true, opacity: .28, depthWrite: false, blending: THREE.AdditiveBlending }))
+  glow.scale.set(5.8, 5.8, 1)
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, color: 0xdffefb, transparent: true, opacity: .78, depthWrite: false }))
+  core.scale.set(1.05, 1.05, 1)
+  group.add(glow, core)
+  return group
+}
+
+function createMist(texture: THREE.Texture, hero: boolean): THREE.Group {
+  const group = new THREE.Group()
+  const random = seededRandom(7741)
+  const count = hero ? 15 : 9
+  for (let index = 0; index < count; index += 1) {
+    const cloud = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: texture,
+      color: index % 3 === 0 ? 0x2a6f76 : 0x173f4b,
+      transparent: true,
+      opacity: .055 + random() * .055,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }))
+    cloud.position.set((random() - .5) * 31, .2 + random() * 2.6, -11 - random() * 8)
+    cloud.scale.set(5 + random() * 8, .65 + random() * 1.2, 1)
+    group.add(cloud)
+  }
+  return group
+}
+
+function createSoftTexture(): THREE.CanvasTexture {
+  const surface = document.createElement('canvas')
+  surface.width = 128
+  surface.height = 128
+  const context = surface.getContext('2d')
+  if (context) {
+    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64)
+    gradient.addColorStop(0, 'rgba(255,255,255,1)')
+    gradient.addColorStop(.2, 'rgba(255,255,255,.72)')
+    gradient.addColorStop(.58, 'rgba(255,255,255,.14)')
+    gradient.addColorStop(1, 'rgba(255,255,255,0)')
+    context.fillStyle = gradient
+    context.fillRect(0, 0, 128, 128)
+  }
+  const texture = new THREE.CanvasTexture(surface)
+  texture.colorSpace = THREE.SRGBColorSpace
+  return texture
+}
+
+function seededRandom(seed: number): () => number {
+  let value = seed >>> 0
+  return () => {
+    value = (value * 1664525 + 1013904223) >>> 0
+    return value / 4294967296
+  }
 }
 
 function createBoat(scale: number): THREE.Group {
   const boat = new THREE.Group()
   boat.scale.setScalar(scale)
-  const hullMaterial = new THREE.MeshStandardMaterial({ color: 0x2c8f94, metalness: .22, roughness: .42, emissive: 0x15565c, emissiveIntensity: .72 })
-  const trimMaterial = new THREE.MeshStandardMaterial({ color: 0xd8fff9, roughness: .36, emissive: 0x3ccfc4, emissiveIntensity: .38 })
-  const sailMaterial = new THREE.MeshStandardMaterial({ color: 0xe4fffb, emissive: 0x54dacf, emissiveIntensity: .38, side: THREE.DoubleSide, transparent: true, opacity: .96 })
-  const mastMaterial = new THREE.MeshStandardMaterial({ color: 0xb8d7d2, metalness: .32, roughness: .46, emissive: 0x225d5b, emissiveIntensity: .26 })
-  const hull = new THREE.Mesh(new THREE.SphereGeometry(.74, 24, 12, 0, Math.PI * 2, 0, Math.PI * .52), hullMaterial)
-  hull.scale.set(.48, .34, 1.28)
-  hull.rotation.z = Math.PI
-  hull.position.y = .04
+  const hullMaterial = new THREE.MeshPhysicalMaterial({ color: 0x0b4b57, roughness: .28, metalness: .12, clearcoat: .82, clearcoatRoughness: .2, emissive: 0x07353c, emissiveIntensity: .62 })
+  const trimMaterial = new THREE.MeshStandardMaterial({ color: 0xe6fff9, roughness: .42, emissive: 0x47bdb2, emissiveIntensity: .3 })
+  const sailMaterial = new THREE.MeshPhysicalMaterial({ color: 0xd9e9df, roughness: .76, side: THREE.DoubleSide, transparent: true, opacity: .94, emissive: 0x245d57, emissiveIntensity: .08 })
+  const mastMaterial = new THREE.MeshStandardMaterial({ color: 0xb8d6cf, metalness: .22, roughness: .5 })
+  const hull = new THREE.Mesh(createHullGeometry(), hullMaterial)
+  hull.position.y = .02
   hull.userData.boatSurface = true
   boat.add(hull)
-
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(.58, .08, 1.25), trimMaterial)
-  deck.position.y = .12
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(.66, .075, 1.42), trimMaterial)
+  deck.position.set(0, .14, -.04)
   deck.userData.boatSurface = true
   boat.add(deck)
-
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.018, .024, 1.42, 10), mastMaterial)
-  mast.position.y = .78
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.022, .03, 1.65, 10), mastMaterial)
+  mast.position.set(0, .92, .08)
   mast.userData.boatSurface = true
   boat.add(mast)
-
-  const mainsail = createSail([
-    .025, .28, -.02,
-    .025, 1.46, -.02,
-    .025, .34, .82,
-  ], sailMaterial)
-  mainsail.position.y = .04
-  boat.add(mainsail)
-
-  const foresail = createSail([
-    -.025, .32, -.08,
-    -.025, 1.34, -.08,
-    -.025, .36, -.7,
-  ], sailMaterial)
-  foresail.position.y = .04
-  boat.add(foresail)
-
-  const wakeMaterial = new THREE.LineBasicMaterial({
-    color: 0x79fff4,
-    transparent: true,
-    opacity: .28,
-    blending: THREE.AdditiveBlending,
-  })
-  boat.add(createWakeTrail(-.2, wakeMaterial), createWakeTrail(.2, wakeMaterial))
-  if (scale > 1) {
-    const launchLight = new THREE.PointLight(0x69fff2, 18, 6, 1.8)
-    launchLight.position.set(0, .8, .1)
-    boat.add(launchLight)
-  }
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, .88, 8), mastMaterial)
+  boom.position.set(.38, .72, .08)
+  boom.rotation.z = Math.PI / 2
+  boom.userData.boatSurface = true
+  boat.add(boom)
+  boat.add(
+    createSail([.035, .35, .08, .035, 1.7, .08, .92, .46, .08], sailMaterial),
+    createSail([-.035, .4, .04, -.035, 1.55, .04, -.74, .46, .04], sailMaterial),
+  )
+  const lantern = new THREE.Mesh(
+    new THREE.SphereGeometry(.055, 12, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffe8a3 }),
+  )
+  lantern.position.set(.2, .3, -.45)
+  boat.add(lantern)
+  const glow = new THREE.PointLight(0xffd991, .32, 1.8, 2)
+  glow.position.copy(lantern.position)
+  boat.add(glow)
+  const wakeMaterial = new THREE.LineBasicMaterial({ color: 0xa9fff8, transparent: true, opacity: .32, blending: THREE.AdditiveBlending })
+  boat.add(createWakeTrail(-.23, wakeMaterial), createWakeTrail(.23, wakeMaterial))
   return boat
 }
 
-function createSail(points: number[], material: THREE.MeshStandardMaterial): THREE.Mesh {
+function createHullGeometry(): THREE.BufferGeometry {
+  const positions = new Float32Array([
+    0, -.03, 1.62,
+    -.58, .1, .45,
+    -.5, .08, -1.05,
+    .5, .08, -1.05,
+    .58, .1, .45,
+    0, -.42, .48,
+    0, -.34, -.95,
+  ])
+  const indices = [
+    0, 1, 5, 0, 5, 4,
+    1, 2, 6, 1, 6, 5,
+    4, 5, 6, 4, 6, 3,
+    2, 3, 6,
+    0, 4, 3, 0, 3, 2, 0, 2, 1,
+  ]
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setIndex(indices)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+function createSail(points: number[], material: THREE.Material): THREE.Mesh {
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
   geometry.computeVertexNormals()
   const sail = new THREE.Mesh(geometry, material)
+  sail.position.y = .04
   sail.userData.boatSurface = true
   return sail
 }
@@ -480,7 +696,7 @@ function setBoatColor(boat: THREE.Group, color: number) {
   boat.traverse((object) => {
     if (!(object instanceof THREE.Mesh) || !object.userData.boatSurface) return
     const material = object.material as THREE.MeshStandardMaterial
-    material.emissive.setHex(color)
+    if (material.emissive) material.emissive.setHex(color)
   })
 }
 

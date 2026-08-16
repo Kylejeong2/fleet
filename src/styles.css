@@ -71,13 +71,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .conversation.ocean-home .fleet-boat-mark .boat-hull { fill: #2baba2; }
 .conversation.ocean-home .theme-toggle { border-color: rgb(127 255 242 / 22%); background: rgb(7 33 39 / 64%); color: #bafff8; }
 
-.welcome-stage { position: relative; display: grid; width: 100%; height: 100%; min-height: 0; place-content: center; justify-items: center; gap: 19px; overflow: hidden; padding: clamp(30px, 5vh, 64px) 28px 70px; isolation: isolate; }
-.intro { position: relative; z-index: 4; display: grid; max-width: 1040px; justify-items: center; gap: 13px; text-align: center; }
+.welcome-stage { position: relative; display: grid; width: 100%; height: 100%; min-height: 0; place-content: center; justify-items: center; gap: 20px; overflow: hidden; padding: clamp(28px, 4.5vh, 58px) 28px 64px; isolation: isolate; }
+.intro { position: relative; z-index: 4; display: grid; max-width: 880px; justify-items: center; gap: 13px; text-align: center; }
 .intro::before { position: absolute; top: -26px; left: 50%; width: 310px; height: 100px; border-radius: 50%; background: #65fff0; opacity: .08; filter: blur(45px); content: ""; transform: translateX(-50%); }
 .intro h1, .intro p { margin: 0; }
-.intro h1 { color: #f5fffd; font-size: clamp(42px, 5.4vw, 76px); font-weight: 510; letter-spacing: -.06em; line-height: .96; text-shadow: 0 2px 22px rgb(78 255 236 / 10%), 0 16px 70px rgb(0 0 0 / 48%); text-wrap: balance; }
-.intro p { max-width: 760px; color: #b3cecb; font-size: clamp(16px, 1.45vw, 19px); line-height: 1.55; text-shadow: 0 2px 13px #02090e, 0 0 30px #02090e; text-wrap: balance; }
-.research-composer { position: relative; z-index: 5; width: min(730px, 100%); margin: 0 auto; padding: 16px; border: 1px solid rgb(155 255 244 / 25%); border-radius: 20px; background: linear-gradient(145deg, rgb(11 32 38 / 88%), rgb(4 18 25 / 78%)); box-shadow: inset 0 1px rgb(255 255 255 / 7%), 0 30px 100px rgb(0 0 0 / 44%), 0 0 0 1px rgb(61 212 199 / 4%), 0 0 70px rgb(49 219 203 / 9%); backdrop-filter: blur(24px) saturate(130%); }
+.intro h1 { color: #f5fffd; font-size: clamp(42px, 4.9vw, 66px); font-weight: 510; letter-spacing: -.058em; line-height: .98; text-shadow: 0 2px 22px rgb(78 255 236 / 13%), 0 18px 72px rgb(0 0 0 / 55%); text-wrap: balance; }
+.intro p { max-width: 720px; color: #b8d2cf; font-size: clamp(16px, 1.35vw, 18px); line-height: 1.55; text-shadow: 0 2px 14px #02090e, 0 0 34px #02090e; text-wrap: balance; }
+.research-composer { position: relative; z-index: 5; width: min(720px, 100%); margin: 0 auto; padding: 16px; border: 1px solid rgb(155 255 244 / 23%); border-radius: 20px; background: linear-gradient(145deg, rgb(8 29 36 / 88%), rgb(3 15 23 / 8%)); box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 34px 110px rgb(0 0 0 / 48%), 0 0 0 1px rgb(61 212 199 / 4%), 0 0 80px rgb(49 219 203 / 8%); backdrop-filter: blur(26px) saturate(125%); }
 .research-composer::after { position: absolute; right: 15%; bottom: -1px; left: 15%; height: 1px; background: linear-gradient(90deg, transparent, #75fff2, transparent); opacity: .72; content: ""; }
 .research-composer textarea { display: block; width: 100%; min-height: 106px; padding: 3px 4px; resize: none; border: 0; outline: 0; background: transparent; color: #effffc; font-size: 18px; line-height: 1.5; }
 .research-composer textarea::placeholder { color: #72918f; }
@@ -105,22 +105,22 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .launch-button:hover:not(:disabled) { box-shadow: 0 0 38px rgb(76 230 216 / 38%); transform: translateY(-1px); }
 .launch-button:disabled, .follow-up-composer button:disabled { cursor: not-allowed; opacity: .42; }
 
-.ocean-transition-frame { position: relative; width: 100%; min-height: 0; overflow: hidden; border-radius: 22px; isolation: isolate; }
+.ocean-transition-frame { position: relative; width: 100%; min-height: 0; overflow: hidden; border-radius: 20px; isolation: isolate; }
 .ocean-transition-hero { position: absolute; inset: 0; z-index: 0; height: 100%; border-radius: 0; }
-.ocean-transition-compact { margin: 4px 0 24px; box-shadow: 0 26px 80px rgb(2 19 28 / 18%); }
-.research-ocean { position: relative; width: 100%; height: 390px; overflow: hidden; border: 1px solid #1b505a; border-radius: inherit; background: radial-gradient(circle at 72% 14%, rgb(126 235 229 / 19%), transparent 8%), radial-gradient(ellipse at 50% 38%, #0a3140 0%, #041722 42%, #01070d 100%); color: #c9fff9; box-shadow: inset 0 1px rgb(170 255 247 / 10%), inset 0 -50px 90px rgb(0 5 10 / 34%), 0 18px 50px rgb(0 0 0 / 18%); isolation: isolate; transition: height .9s cubic-bezier(.22, 1, .36, 1), border-color .5s ease, box-shadow .5s ease; }
-.research-ocean::before { position: absolute; top: 39%; right: -8%; bottom: -24%; left: -8%; z-index: 0; border-radius: 48% 52% 0 0 / 9% 12% 0 0; background: radial-gradient(ellipse at 56% 4%, rgb(87 224 216 / 24%), transparent 38%), linear-gradient(180deg, rgb(9 73 88 / 72%), rgb(2 24 37 / 92%) 42%, #010810 100%); opacity: .5; content: ""; transform: rotate(-.7deg); pointer-events: none; }
+.ocean-transition-compact { margin: 4px 0 24px; box-shadow: 0 30px 90px rgb(2 19 28 / 22%), 0 1px rgb(255 255 255 / 7%); }
+.research-ocean { position: relative; width: 100%; height: 390px; overflow: hidden; border: 1px solid #1c4d57; border-radius: inherit; background: #020811; color: #c9fff9; box-shadow: inset 0 1px rgb(170 255 247 / 9%), inset 0 -50px 90px rgb(0 5 10 / 28%), 0 18px 50px rgb(0 0 0 / 18%); isolation: isolate; }
 .ocean-transition-hero .research-ocean { height: 100%; border: 0; border-radius: 0; box-shadow: none; }
 .ocean-loading { display: grid; place-items: center; background: radial-gradient(circle at 50% 58%, #0b373b, #020b12 58%); color: #78a5a1; font-size: 12px; }
 .ocean-canvas { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; outline: none; }
-.ocean-vignette { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(circle at 72% 13%, rgb(184 255 248 / 14%) 0 1px, rgb(85 224 216 / 8%) 2%, transparent 10%), radial-gradient(ellipse at 50% 52%, transparent 0 26%, rgb(1 8 13 / 10%) 56%, rgb(1 7 11 / 86%) 100%), linear-gradient(180deg, rgb(1 7 12 / 20%) 0%, transparent 34%, transparent 67%, rgb(1 8 13 / 66%) 100%); }
-.ocean-agent-access { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.ocean-atmosphere { position: absolute; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(circle at 77% 16%, rgb(202 255 249 / 12%) 0 1px, rgb(88 225 216 / 8%) 2%, transparent 12%), radial-gradient(ellipse at 48% 43%, rgb(67 227 214 / 5%), transparent 44%), linear-gradient(180deg, transparent 32%, rgb(11 89 93 / 5%) 50%, transparent 68%); mix-blend-mode: screen; }
+.ocean-vignette { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: radial-gradient(ellipse at 50% 48%, transparent 0 28%, rgb(1 8 13 / 8%) 58%, rgb(1 7 11 / 75%) 100%), linear-gradient(180deg, rgb(1 7 12 / 8%) 0%, transparent 38%, transparent 66%, rgb(1 8 13 / 58%) 100%); }
+.ocean-agent-access { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .ocean-agent-target { position: absolute; top: var(--agent-y); left: var(--agent-x); display: grid; width: 27px; height: 27px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 50%; background: transparent; color: transparent; pointer-events: auto; cursor: pointer; transform: translate(-50%, -50%); }
 .ocean-agent-target span { position: absolute; top: 29px; left: 50%; padding: 3px 6px; border: 1px solid rgb(117 255 243 / 24%); border-radius: 5px; background: rgb(2 16 22 / 90%); color: #aefbf4; opacity: 0; font-size: 12px; pointer-events: none; transform: translateX(-50%) translateY(-3px); transition: opacity .14s, transform .14s; }
 .ocean-agent-target:hover span, .ocean-agent-target:focus-visible span { opacity: 1; transform: translateX(-50%) translateY(0); }
 .ocean-agent-target:focus-visible { border-color: #8ffff5; outline: 2px solid rgb(143 255 245 / 25%); outline-offset: 2px; }
 .ocean-agent-target.retrying, .ocean-agent-target.failed { border-color: rgb(255 72 92 / 45%); box-shadow: 0 0 13px rgb(255 53 78 / 34%); }
-.ocean-source-disclosure { position: absolute; right: 12%; bottom: 13%; left: 12%; z-index: 4; display: grid; justify-items: center; pointer-events: none; }
+.ocean-source-disclosure { position: absolute; right: 12%; bottom: 13%; left: 12%; z-index: 5; display: grid; justify-items: center; pointer-events: none; }
 .ocean-source-disclosure summary { display: flex; height: 30px; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid rgb(117 255 243 / 22%); border-radius: 8px; background: rgb(2 19 25 / 82%); color: #a9cfcc; box-shadow: 0 8px 28px rgb(0 0 0 / 24%); font-size: 12px; list-style: none; pointer-events: auto; cursor: pointer; backdrop-filter: blur(9px); }
 .ocean-source-disclosure summary::-webkit-details-marker { display: none; }
 .ocean-source-disclosure summary::after { width: 6px; height: 6px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; content: ""; transform: translateY(-2px) rotate(45deg); transition: transform .15s ease; }
@@ -397,6 +397,10 @@ details[open] > summary .reasoning-chevron { transform: rotate(180deg); }
 :root[data-theme="dark"] .not-found { background: var(--panel); }
 :root[data-theme="dark"] .not-found a { color: #b9bcb6; }
 :root[data-theme="dark"] .research-ocean { border-color: #294945; background: #020b12; color: #c9fff9; box-shadow: inset 0 1px rgb(255 255 255 / 3%), 0 18px 50px rgb(0 0 0 / 24%); }
+:root[data-theme="dark"] .ocean-home .intro p { color: #b8d2cf; }
+:root[data-theme="dark"] .ocean-home .research-composer { border-color: rgb(155 255 244 / 23%); background: linear-gradient(145deg, rgb(8 29 36 / 88%), rgb(3 15 23 / 8%)); box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 34px 110px rgb(0 0 0 / 48%), 0 0 0 1px rgb(61 212 199 / 4%), 0 0 80px rgb(49 219 203 / 8%); }
+:root[data-theme="dark"] .ocean-home .research-composer textarea { color: #effffc; }
+:root[data-theme="dark"] .ocean-home .research-composer textarea::placeholder { color: #72918f; }
 
 @media (max-width: 980px) {
   .fleet-dialog { grid-template-columns: minmax(0, 1fr) 300px; }

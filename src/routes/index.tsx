@@ -13,7 +13,7 @@ import {
   Sun,
   XCircle,
 } from 'lucide-react'
-import { AnimatePresence, domMax, LazyMotion, useReducedMotion } from 'motion/react'
+import { domAnimation, LazyMotion, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -101,7 +101,6 @@ const botPalettes = [
 ] as const
 
 function FleetHome() {
-  const prefersReducedMotion = useReducedMotion()
   const [hydrated, setHydrated] = useState(false)
   const [question, setQuestion] = useState('')
   const [agentCount, setAgentCount] = useState(50)
@@ -118,7 +117,6 @@ function FleetHome() {
   const dialogRef = useRef<HTMLElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
-  const transitioningRunRef = useRef<string | null>(null)
   const appendingFollowUpRef = useRef(false)
 
   useEffect(() => {
@@ -172,23 +170,17 @@ function FleetHome() {
     if (!snapshot?.id) return
     if (appendingFollowUpRef.current) {
       appendingFollowUpRef.current = false
-      transitioningRunRef.current = null
       const frame = requestAnimationFrame(() => {
         const messages = messagesRef.current
         messages?.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' })
       })
       return () => cancelAnimationFrame(frame)
     }
-    transitioningRunRef.current = snapshot.id
     messagesRef.current?.scrollTo({ top: 0 })
-    const timeout = window.setTimeout(() => {
-      if (transitioningRunRef.current === snapshot.id) transitioningRunRef.current = null
-    }, 1100)
-    return () => window.clearTimeout(timeout)
   }, [snapshot?.id])
 
   useEffect(() => {
-    if (!snapshot || !autoScrollRef.current || transitioningRunRef.current === snapshot.id) return
+    if (!snapshot || !autoScrollRef.current) return
     const messages = messagesRef.current
     if (!messages) return
     const frame = requestAnimationFrame(() => {
@@ -260,7 +252,6 @@ function FleetHome() {
     const currentSnapshot = snapshot
     const isFollowUp = mode === 'follow-up' && currentSnapshot !== null
     const priorTurns = isFollowUp ? [...conversationHistory, currentSnapshot] : []
-    const launchStartedAt = performance.now()
     setSubmitting(true)
     setError(null)
     if (!isFollowUp) {
@@ -295,11 +286,6 @@ function FleetHome() {
         throw new Error(message)
       }
       const nextSnapshot = RunSnapshotSchema.parse(body)
-      const minimumLaunchDuration = isFollowUp || prefersReducedMotion ? 0 : 900
-      const remainingLaunchTime = minimumLaunchDuration - (performance.now() - launchStartedAt)
-      if (remainingLaunchTime > 0) {
-        await new Promise((resolve) => window.setTimeout(resolve, remainingLaunchTime))
-      }
       if (isFollowUp) {
         appendingFollowUpRef.current = true
         setConversationHistory((current) => [...current, currentSnapshot])
@@ -335,7 +321,7 @@ function FleetHome() {
   }
 
   return (
-    <LazyMotion features={domMax} strict>
+    <LazyMotion features={domAnimation} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
       <section className={`conversation ${snapshot ? 'has-run' : 'ocean-home'}`} aria-label="Fleet research chat">
         <header className="conversation-header">
@@ -376,15 +362,8 @@ function FleetHome() {
           </div>
         </header>
 
-        <AnimatePresence initial={false} mode="sync">
-          {snapshot ? (
-            <m.div
-              className="conversation-stage"
-              key="research-conversation"
-              initial={{ opacity: 1, y: 0 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: .2, ease: [.22, 1, .36, 1] }}
-            >
+        {snapshot ? (
+          <div className="conversation-stage">
               <ResearchConversation
                 history={conversationHistory}
                 snapshot={snapshot}
@@ -393,14 +372,9 @@ function FleetHome() {
                 onBreakAutoScroll={() => { autoScrollRef.current = false }}
                 onReachBottom={() => { autoScrollRef.current = true }}
               />
-            </m.div>
-          ) : (
-            <m.div
-              className="welcome-transition"
-              key="research-welcome"
-              exit={{ opacity: 0 }}
-              transition={{ duration: .82, ease: [.4, 0, .2, 1] }}
-            >
+          </div>
+        ) : (
+          <div className="welcome-transition">
               <WelcomeComposer
                 question={question}
                 setQuestion={setQuestion}
@@ -409,9 +383,8 @@ function FleetHome() {
                 submitting={submitting}
                 onSubmit={startResearch}
               />
-            </m.div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
 
         {snapshot ? (
           <form className="follow-up-composer" onSubmit={(event) => startResearch(event, 'follow-up')}>
@@ -466,8 +439,8 @@ function WelcomeComposer(props: {
   return (
     <section className="welcome-stage" aria-labelledby="research-heading">
       <div className="intro">
-        <h1 id="research-heading">One question. An entire fleet of intelligence.</h1>
-        <p>Send 100 researchers in every direction, then synthesize what they find into one cited answer.</p>
+        <h1 id="research-heading">What should the fleet investigate?</h1>
+        <p>Send parallel researchers across the problem, then bring the evidence back into one answer.</p>
       </div>
       <form className="research-composer" onSubmit={props.onSubmit}>
         <label className="sr-only" htmlFor="research-question">Research question</label>
@@ -506,15 +479,11 @@ function WelcomeComposer(props: {
           </button>
         </div>
       </form>
-      <m.div
-        className="ocean-transition-frame ocean-transition-hero"
-        layoutId="research-ocean-shell"
-        transition={{ layout: { duration: .95, ease: [.22, 1, .36, 1] } }}
-      >
+      <div className="ocean-transition-frame ocean-transition-hero">
         <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
-          <ResearchOcean launching={props.submitting} />
+          <ResearchOcean />
         </Suspense>
-      </m.div>
+      </div>
     </section>
   )
 }
@@ -628,15 +597,11 @@ function ResearchTurn({
           {!archived && (snapshot.status === 'running' || snapshot.status === 'synthesizing') ? <TypingDots /> : null}
         </header>
         {archived ? null : (
-          <m.div
-            className="ocean-transition-frame ocean-transition-compact"
-            layoutId="research-ocean-shell"
-            transition={{ layout: { duration: .95, ease: [.22, 1, .36, 1] } }}
-          >
+          <div className="ocean-transition-frame ocean-transition-compact">
             <Suspense fallback={<OceanFallback label="Launching the fleet" />}>
               <ResearchOcean snapshot={snapshot} onOpenAgent={openAgent} />
             </Suspense>
-          </m.div>
+          </div>
         )}
         {answer ? null : <ResearchProgress snapshot={snapshot} />}
         {archived ? null : <ResearchActivity snapshot={snapshot} onOpenAgent={openAgent} />}
