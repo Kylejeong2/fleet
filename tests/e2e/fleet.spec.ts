@@ -14,6 +14,8 @@ const askFleet = async (page: Page, count = '6') => {
 
 test('offers stable agent-count presets with twelve selected by default', async ({ page }) => {
   await page.goto('/')
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg')
+  expect((await page.request.get('/favicon.svg')).ok()).toBe(true)
   const agentCount = page.getByLabel('Number of agents')
   await expect(agentCount).toHaveValue('12')
   await expect(agentCount.locator('option')).toHaveText([

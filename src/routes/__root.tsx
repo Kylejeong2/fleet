@@ -9,7 +9,10 @@ import stylesUrl from '../styles.css?url'
 
 export const Route = createRootRoute({
   head: () => ({
-    links: [{ rel: 'stylesheet', href: stylesUrl }],
+    links: [
+      { rel: 'stylesheet', href: stylesUrl },
+      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+    ],
     meta: [
       { charSet: 'utf-8' },
       {
