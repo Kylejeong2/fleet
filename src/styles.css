@@ -1,6 +1,7 @@
 :root {
   color: #171817;
   background: #e9e9e7;
+  color-scheme: light;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -39,12 +40,15 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .conversation-header { display: flex; align-items: center; gap: 9px; padding: 0 16px; border-bottom: 1px solid var(--line); }
 .fleet-glyph { display: grid; width: 21px; height: 21px; place-items: center; clip-path: polygon(25% 7%, 75% 7%, 100% 50%, 75% 93%, 25% 93%, 0 50%); background: #8b6b48; color: #fff; font-size: 8px; font-weight: 700; }
 .conversation-title { font-size: 14px; font-weight: 620; }
+.header-actions { display: flex; align-items: center; gap: 7px; margin-left: auto; }
 .run-meta { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .status-light { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgb(48 164 108 / 12%); }
 .status-light.completed { background: #878983; box-shadow: none; }
 .status-light.failed { background: var(--red); box-shadow: none; }
-.view-fleet-button { display: flex; height: 30px; align-items: center; gap: 7px; margin-left: auto; padding: 0 10px; border: 1px solid #cfcfcb; border-radius: 7px; background: #fff; box-shadow: 0 1px 1px rgb(0 0 0 / 4%); cursor: pointer; }
+.view-fleet-button { display: flex; height: 30px; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid #cfcfcb; border-radius: 7px; background: #fff; box-shadow: 0 1px 1px rgb(0 0 0 / 4%); cursor: pointer; }
 .view-fleet-button:hover { background: var(--wash); }
+.theme-toggle { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid #cfcfcb; border-radius: 7px; background: #fff; color: #555651; cursor: pointer; transition: border-color .14s, background .14s, color .14s; }
+.theme-toggle:hover { border-color: #b9bab5; background: var(--wash); color: var(--ink); }
 .fleet-mark { position: relative; display: inline-block; width: 15px; height: 13px; }
 .fleet-mark i { position: absolute; width: 5px; height: 5px; border-radius: 2px; background: currentColor; }
 .fleet-mark i:nth-child(1) { top: 0; left: 0; }
@@ -204,6 +208,84 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .not-found h1 { margin: 0; font-size: clamp(28px, 5vw, 44px); font-weight: 520; letter-spacing: -.04em; }
 .not-found a { color: #555651; }
 
+:root[data-theme="dark"] {
+  color: #eceeeb;
+  background: #0f100f;
+  color-scheme: dark;
+  --ink: #eceeeb;
+  --muted: #a0a39d;
+  --line: #363835;
+  --line-soft: #2a2c29;
+  --panel: #171817;
+  --wash: #242623;
+}
+:root[data-theme="dark"] body { background: #0f100f; }
+:root[data-theme="dark"] .app-shell { border-color: #363835; background: var(--panel); box-shadow: 0 10px 34px rgb(0 0 0 / 32%); }
+:root[data-theme="dark"] .conversation { background: var(--panel); }
+:root[data-theme="dark"] .view-fleet-button,
+:root[data-theme="dark"] .theme-toggle { border-color: #444641; background: #20221f; color: #d8dad6; box-shadow: none; }
+:root[data-theme="dark"] .view-fleet-button:hover,
+:root[data-theme="dark"] .theme-toggle:hover { border-color: #5a5d56; background: var(--wash); color: #fff; }
+:root[data-theme="dark"] .intro p { color: var(--muted); }
+:root[data-theme="dark"] .research-composer,
+:root[data-theme="dark"] .follow-up-composer { border-color: #3c3e3a; background: #1d1f1c; box-shadow: 0 12px 36px rgb(0 0 0 / 22%); }
+:root[data-theme="dark"] .research-composer textarea,
+:root[data-theme="dark"] .follow-up-composer input { background: transparent; color: var(--ink); }
+:root[data-theme="dark"] .research-composer textarea::placeholder,
+:root[data-theme="dark"] .follow-up-composer input::placeholder { color: #747870; }
+:root[data-theme="dark"] .select-trigger { border-color: #41433e; background: linear-gradient(#252724, #20221f); color: #d0d2ce; box-shadow: inset 0 1px rgb(255 255 255 / 4%); }
+:root[data-theme="dark"] .select-trigger:hover,
+:root[data-theme="dark"] .select-trigger[data-state="open"] { border-color: #5a5d56; background: #292b28; }
+:root[data-theme="dark"] .select-content { border-color: #42443f; background: rgb(31 33 30 / 98%); box-shadow: 0 16px 38px rgb(0 0 0 / 42%); }
+:root[data-theme="dark"] .select-item { color: #c9cbc7; }
+:root[data-theme="dark"] .select-item[data-highlighted] { background: #353834; color: #fff; }
+:root[data-theme="dark"] .select-item[data-state="checked"] { color: #fff; }
+:root[data-theme="dark"] .launch-button,
+:root[data-theme="dark"] .follow-up-composer button { background: #eceeeb; color: #151615; }
+:root[data-theme="dark"] .messages { scrollbar-color: #555851 transparent; }
+:root[data-theme="dark"] .messages::-webkit-scrollbar-thumb { background-color: #555851; }
+:root[data-theme="dark"] .messages::-webkit-scrollbar-thumb:hover { background-color: #73776e; }
+:root[data-theme="dark"] .prompt-bubble { background: #282a27; }
+:root[data-theme="dark"] .research-icon { border-color: #3d3f3a; background: #222421; color: #b9bcb6; }
+:root[data-theme="dark"] .answer-text { color: #d7d9d5; }
+:root[data-theme="dark"] .answer-text h1,
+:root[data-theme="dark"] .answer-text h2,
+:root[data-theme="dark"] .answer-text h3,
+:root[data-theme="dark"] .answer-text strong { color: #f1f2f0; }
+:root[data-theme="dark"] .answer-text a { color: #8ab8e5; text-decoration-color: rgb(138 184 229 / 45%); }
+:root[data-theme="dark"] .answer-text code { background: #292b28; }
+:root[data-theme="dark"] .answer-text pre,
+:root[data-theme="dark"] .answer-text th { background: #20221f; }
+:root[data-theme="dark"] .answer-text blockquote { border-left-color: #5a5d56; color: #b6b9b2; }
+:root[data-theme="dark"] .agent-citation { border-color: #50667a; background: #25313b; color: #a8c8e5; }
+:root[data-theme="dark"] .agent-citation:hover { border-color: #718da6; background: #2c3c49; }
+:root[data-theme="dark"] .progress-copy { color: #b1b4ae; }
+:root[data-theme="dark"] .fleet-dialog { border-color: #444641; background: #191a18; box-shadow: 0 24px 76px rgb(0 0 0 / 48%); }
+:root[data-theme="dark"] .fleet-head button { color: #aaaDA7; }
+:root[data-theme="dark"] .fleet-head button:hover { background: #2a2c29; color: #fff; }
+:root[data-theme="dark"] .objective-block p,
+:root[data-theme="dark"] .agent-objective,
+:root[data-theme="dark"] .trace-objective,
+:root[data-theme="dark"] .trace-finding { color: #b3b6af; }
+:root[data-theme="dark"] .overall-progress,
+:root[data-theme="dark"] .agent-progress { background: #30322f; }
+:root[data-theme="dark"] .overall-progress i { background: #e3e5e1; }
+:root[data-theme="dark"] .agent-progress i { background: #8d9188; }
+:root[data-theme="dark"] .agent-card,
+:root[data-theme="dark"] .agent-card.succeeded { border-color: #3a3c38; background: #20221f; }
+:root[data-theme="dark"] .agent-card:hover { border-color: #5a5d56; }
+:root[data-theme="dark"] .agent-card.selected { border-color: #898d84; box-shadow: inset 0 0 0 1px #898d84; }
+:root[data-theme="dark"] .agent-card.failed { border-color: #74413d; background: #2b201f; }
+:root[data-theme="dark"] .trace-panel { background: #1b1c1a; }
+:root[data-theme="dark"] .tool-event,
+:root[data-theme="dark"] .tool-event > button { border-color: #3a3c38; background: #20221f; }
+:root[data-theme="dark"] .tool-event > button:hover { background: #292b28; }
+:root[data-theme="dark"] .tool-icon { background: #30322f; }
+:root[data-theme="dark"] .tool-event pre { border-top-color: #3a3c38; background: #181917; color: #b8bbb4; }
+:root[data-theme="dark"] .trace-foot { color: #9a9d96; }
+:root[data-theme="dark"] .not-found { background: var(--panel); }
+:root[data-theme="dark"] .not-found a { color: #b9bcb6; }
+
 @media (max-width: 980px) {
   .fleet-dialog { grid-template-columns: minmax(0, 1fr) 300px; }
   .agent-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -237,6 +319,10 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
   .select-trigger, .agent-count-control .select-trigger { width: 100%; }
   .agent-grid { grid-template-columns: 1fr 1fr; padding-inline: 8px; }
   .agent-card { height: 124px; }
+}
+
+@media (max-width: 360px) {
+  .run-meta { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

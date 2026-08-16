@@ -16,4 +16,12 @@ describe('interface copy contract', () => {
     expect(interfaceSource).not.toContain('Execution profile')
     expect(interfaceSource).not.toContain('Live workers')
   })
+
+  it('provides an accessible persisted theme toggle', () => {
+    expect(interfaceSource).toContain("window.localStorage.getItem('fleet-theme')")
+    expect(interfaceSource).toContain("window.localStorage.setItem('fleet-theme', nextTheme)")
+    expect(interfaceSource).toContain("aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}")
+    expect(interfaceSource).toContain('<Sun aria-hidden="true"')
+    expect(interfaceSource).toContain('<Moon aria-hidden="true"')
+  })
 })

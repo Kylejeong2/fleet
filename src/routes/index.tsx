@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import * as SelectPrimitive from '@radix-ui/react-select'
-import { ArrowUp, Check, ChevronDown, ExternalLink, Search as SearchIcon } from 'lucide-react'
+import { ArrowUp, Check, ChevronDown, ExternalLink, Moon, Search as SearchIcon, Sun } from 'lucide-react'
 import { domAnimation, LazyMotion, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import Markdown from 'react-markdown'
@@ -67,6 +67,7 @@ const agentNames = [
 ]
 
 const agentCountOptions = [1, 3, 6, 12, 25, 50, 100] as const
+type Theme = 'light' | 'dark'
 
 const botPalettes = [
   { shell: '#c9dcf5', shellLight: '#f4f8ff', accent: '#5579b3', accentSoft: '#d9e6f7', eye: '#25446f' },
@@ -86,11 +87,20 @@ function FleetHome() {
   const [fleetOpen, setFleetOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [theme, setTheme] = useState<Theme>('light')
   const fleetButtonRef = useRef<HTMLButtonElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
 
-  useEffect(() => setHydrated(true), [])
+  useEffect(() => {
+    setHydrated(true)
+    const storedTheme = window.localStorage.getItem('fleet-theme')
+    const preferredTheme: Theme = storedTheme === 'light' || storedTheme === 'dark'
+      ? storedTheme
+      : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    setTheme(preferredTheme)
+    document.documentElement.dataset.theme = preferredTheme
+  }, [])
 
   useEffect(() => {
     if (!snapshot || snapshot.status === 'completed' || snapshot.status === 'failed') {
@@ -230,6 +240,15 @@ function FleetHome() {
     setFleetOpen(true)
   }
 
+  function toggleTheme() {
+    setTheme((current) => {
+      const nextTheme = current === 'dark' ? 'light' : 'dark'
+      document.documentElement.dataset.theme = nextTheme
+      window.localStorage.setItem('fleet-theme', nextTheme)
+      return nextTheme
+    })
+  }
+
   return (
     <LazyMotion features={domAnimation} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
@@ -243,17 +262,30 @@ function FleetHome() {
               <i className={`status-light ${snapshot.status}`} aria-hidden="true" />
             </span>
           ) : null}
-          {snapshot ? (
+          <div className="header-actions">
+            {snapshot ? (
+              <button
+                className="view-fleet-button"
+                type="button"
+                ref={fleetButtonRef}
+                onClick={() => setFleetOpen(true)}
+              >
+                <FleetMark />
+                View fleet
+              </button>
+            ) : null}
             <button
-              className="view-fleet-button"
+              className="theme-toggle"
               type="button"
-              ref={fleetButtonRef}
-              onClick={() => setFleetOpen(true)}
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
-              <FleetMark />
-              View fleet
+              {theme === 'dark'
+                ? <Sun aria-hidden="true" size={16} strokeWidth={1.8} />
+                : <Moon aria-hidden="true" size={16} strokeWidth={1.8} />}
             </button>
-          ) : null}
+          </div>
         </header>
 
         {snapshot ? (
