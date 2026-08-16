@@ -24,4 +24,13 @@ describe('interface copy contract', () => {
     expect(interfaceSource).toContain('<Sun aria-hidden="true"')
     expect(interfaceSource).toContain('<Moon aria-hidden="true"')
   })
+
+  it('renders the Fleet identity as three overlapping decorative boats', () => {
+    expect(interfaceSource).toContain('<FleetBoatMark />')
+    expect(interfaceSource).toContain('className="boat boat-back"')
+    expect(interfaceSource).toContain('className="boat boat-middle"')
+    expect(interfaceSource).toContain('className="boat boat-front"')
+    expect(interfaceSource).toContain('className="fleet-boat-mark"')
+    expect(interfaceSource).toContain('aria-hidden="true"')
+  })
 })

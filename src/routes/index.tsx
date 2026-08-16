@@ -257,7 +257,7 @@ function FleetHome() {
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
       <section className="conversation" aria-label="Fleet research chat">
         <header className="conversation-header">
-          <span className="fleet-glyph" aria-hidden="true">F</span>
+          <FleetBoatMark />
           <span className="conversation-title">Fleet research</span>
           {snapshot ? (
             <span className="run-meta">
@@ -780,6 +780,30 @@ function Bot({ index, active }: { index: number; active: boolean }) {
 
 function FleetMark() {
   return <span className="fleet-mark" aria-hidden="true"><i /><i /><i /></span>
+}
+
+function FleetBoatMark() {
+  return (
+    <svg
+      className="fleet-boat-mark"
+      viewBox="0 0 30 22"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <g className="boat boat-back" transform="translate(1 2)">
+        <path className="boat-sail" d="M6 1v9H1.5L6 1Z" />
+        <path className="boat-hull" d="M.5 11h11c-.8 3-2.7 4.5-5.5 4.5S1.3 14 .5 11Z" />
+      </g>
+      <g className="boat boat-middle" transform="translate(7 1)">
+        <path className="boat-sail" d="M6 1v9H1.5L6 1Z" />
+        <path className="boat-hull" d="M.5 11h11c-.8 3-2.7 4.5-5.5 4.5S1.3 14 .5 11Z" />
+      </g>
+      <g className="boat boat-front" transform="translate(13)">
+        <path className="boat-sail" d="M6 1v9H1.5L6 1Z" />
+        <path className="boat-hull" d="M.5 11h11c-.8 3-2.7 4.5-5.5 4.5S1.3 14 .5 11Z" />
+      </g>
+    </svg>
+  )
 }
 
 function TypingDots() {
