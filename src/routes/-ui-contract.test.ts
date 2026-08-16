@@ -9,4 +9,11 @@ describe('interface copy contract', () => {
     expect(`${interfaceSource}\n${interfaceStyles}`.toLowerCase()).not.toContain('eyebrow')
     expect(interfaceStyles).not.toMatch(/text-transform\s*:\s*uppercase/i)
   })
+
+  it('exposes fleet size without exposing internal execution profiles', () => {
+    expect(interfaceSource).toContain("profile: 'live'")
+    expect(interfaceSource).toContain('Number of agents')
+    expect(interfaceSource).not.toContain('Execution profile')
+    expect(interfaceSource).not.toContain('Live workers')
+  })
 })

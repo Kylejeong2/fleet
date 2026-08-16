@@ -16,7 +16,6 @@ import {
   RunSnapshotSchema,
   type AgentSnapshot,
   type FleetEvent,
-  type RunProfile,
   type RunSnapshot,
   type ToolTrace,
 } from '../lib/fleet-protocol'
@@ -67,12 +66,6 @@ const agentNames = [
 
 const agentCountOptions = [1, 3, 6, 12, 25, 50, 100] as const
 
-const profileOptions: Array<{ value: RunProfile; label: string }> = [
-  { value: 'development', label: 'Development' },
-  { value: 'live-workers', label: 'Live workers' },
-  { value: 'live', label: 'Live fleet' },
-]
-
 const botPalettes = [
   { shell: '#c9dcf5', shellLight: '#f4f8ff', accent: '#5579b3', accentSoft: '#d9e6f7', eye: '#25446f' },
   { shell: '#ead7bd', shellLight: '#fff9f0', accent: '#a9773c', accentSoft: '#f1e2ce', eye: '#63431f' },
@@ -86,7 +79,6 @@ function FleetHome() {
   const [hydrated, setHydrated] = useState(false)
   const [question, setQuestion] = useState('')
   const [agentCount, setAgentCount] = useState(12)
-  const [profile, setProfile] = useState<RunProfile>('development')
   const [snapshot, setSnapshot] = useState<RunSnapshot | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [fleetOpen, setFleetOpen] = useState(false)
@@ -206,7 +198,7 @@ function FleetHome() {
           question: question.trim(),
           agentCount,
           concurrency: Math.min(agentCount, 6),
-          profile,
+          profile: 'live',
         }),
       })
       const body: unknown = await response.json()
@@ -264,8 +256,6 @@ function FleetHome() {
             setQuestion={setQuestion}
             agentCount={agentCount}
             setAgentCount={setAgentCount}
-            profile={profile}
-            setProfile={setProfile}
             submitting={submitting}
             onSubmit={startResearch}
           />
@@ -318,8 +308,6 @@ function WelcomeComposer(props: {
   setQuestion: (value: string) => void
   agentCount: number
   setAgentCount: (value: number) => void
-  profile: RunProfile
-  setProfile: (value: RunProfile) => void
   submitting: boolean
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
@@ -356,12 +344,6 @@ function WelcomeComposer(props: {
             }))}
             className="agent-count-control"
             onValueChange={(value) => props.setAgentCount(Number(value))}
-          />
-          <FleetSelect
-            label="Execution profile"
-            value={props.profile}
-            options={profileOptions}
-            onValueChange={(value) => props.setProfile(value as RunProfile)}
           />
           <button
             className="launch-button"

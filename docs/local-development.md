@@ -4,7 +4,7 @@
 
 - Node.js 22.12 or newer.
 - pnpm 10.22.0. Corepack can install the version pinned in `package.json`.
-- Provider credentials only when using a live profile.
+- `SAIL_API_KEY`, `BROWSERBASE_API_KEY`, and `AI_GATEWAY_API_KEY` for launches from the interface.
 
 ## Setup
 
@@ -16,9 +16,13 @@ pnpm dev
 
 The default database is `.fleet/fleet.sqlite`. The directory is ignored by Git. Delete only that specific file when you intentionally want a fresh local journal.
 
+## Runtime logs
+
+`pnpm dev` prints one structured line for every important fleet transition: run planning, agent starts, model responses, Search and Fetch calls, synthesis, failures, and final duration. Logs include short inputs and result sizes, but never credentials or fetched page bodies. Set `FLEET_LOG_LEVEL=silent` when you need a quiet terminal.
+
 ## Suggested loop
 
-Use the `development` profile with 4 agents and concurrency 2 while changing the interface. It exercises planning, bounded execution, Search and Fetch traces, SSE replay, and synthesis without spending provider credits.
+The interface always launches a full live fleet. Use small agent counts while changing the interface to limit provider spend. Deterministic adapters remain available to the unit and integration test suite.
 
 Before committing:
 
@@ -37,4 +41,4 @@ TanStack Router owns `src/routeTree.gen.ts`. Change route files or generator con
 
 ## Common failures
 
-If a live profile is rejected, check the required credentials for that profile. If an SSE client detects a sequence gap, fetch the snapshot and reconnect from its `latestSequence`. If the SQLite file cannot be opened, confirm that the process can write the `.fleet` directory.
+If a launch is rejected, check all three provider credentials. If an SSE client detects a sequence gap, fetch the snapshot and reconnect from its `latestSequence`. If the SQLite file cannot be opened, confirm that the process can write the `.fleet` directory.

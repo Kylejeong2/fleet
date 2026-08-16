@@ -7,6 +7,7 @@ import {
   type ToolTrace,
 } from '../../lib/fleet-protocol'
 import { FleetJournal } from './journal'
+import { fleetLog } from './log'
 import type {
   ResearchToolCall,
   ResearchToolResult,
@@ -45,6 +46,9 @@ export const planResearchLenses = (count: number): string[] =>
     return `Investigate ${lens}; independent coverage pass ${pass}`
   })
 
+const logAgentId = (agentId: AgentId): string =>
+  agentId.slice(agentId.lastIndexOf(':') + 1)
+
 export class RunCoordinator {
   readonly #active = new Set<RunId>()
 
@@ -56,9 +60,22 @@ export class RunCoordinator {
   ) {}
 
   async run(runId: RunId, input: CreateRunInput): Promise<void> {
-    if (this.#active.has(runId)) return
+    if (this.#active.has(runId)) {
+      fleetLog('warn', 'run.duplicate_skipped', { run: runId })
+      return
+    }
+    const runStartedAt = Date.now()
     this.#active.add(runId)
     const signal = new AbortController().signal
+    fleetLog('info', 'run.started', {
+      run: runId,
+      profile: input.profile,
+      agents: input.agentCount,
+      concurrency: input.concurrency,
+      worker: this.worker.name,
+      synthesizer: this.synthesizer.name,
+      question: input.question,
+    })
     try {
       const assignments = planResearchLenses(input.agentCount).map((objective, index) => ({
         agentId: createAgentId(runId, index),
@@ -72,6 +89,10 @@ export class RunCoordinator {
           ...assignment,
         }))
       }
+      fleetLog('info', 'run.planned', {
+        run: runId,
+        assignments: assignments.length,
+      })
 
       let cursor = 0
       const findings: Array<{ objective: string; finding: string }> = []
@@ -94,6 +115,11 @@ export class RunCoordinator {
       )
       await Promise.all(runners)
       if (findings.length === 0) {
+        fleetLog('error', 'run.failed', {
+          run: runId,
+          durationMs: Date.now() - runStartedAt,
+          error: 'Every research agent failed.',
+        })
         this.journal.append(runId, (metadata) => ({
           kind: 'run.failed',
           runId,
@@ -102,6 +128,12 @@ export class RunCoordinator {
         }))
         return
       }
+      const synthesisStartedAt = Date.now()
+      fleetLog('info', 'synthesis.started', {
+        run: runId,
+        synthesizer: this.synthesizer.name,
+        findings: findings.length,
+      })
       this.journal.append(runId, (metadata) => ({
         kind: 'synthesis.started',
         runId,
@@ -127,8 +159,24 @@ export class RunCoordinator {
         ...metadata,
         answer,
       }))
+      fleetLog('info', 'synthesis.completed', {
+        run: runId,
+        durationMs: Date.now() - synthesisStartedAt,
+        answerChars: answer.length,
+      })
+      fleetLog('info', 'run.completed', {
+        run: runId,
+        durationMs: Date.now() - runStartedAt,
+        succeeded: findings.length,
+        failed: input.agentCount - findings.length,
+      })
     } catch (error) {
       const publicError = error instanceof Error ? error.message : 'Research failed'
+      fleetLog('error', 'run.failed', {
+        run: runId,
+        durationMs: Date.now() - runStartedAt,
+        error: publicError,
+      })
       this.journal.append(runId, (metadata) => ({
         kind: 'run.failed',
         runId,
@@ -147,12 +195,18 @@ export class RunCoordinator {
     question: string
     signal: AbortSignal
   }): Promise<string | null> {
+    const agentStartedAt = Date.now()
     this.journal.append(args.runId, (metadata) => ({
       kind: 'agent.started',
       runId: args.runId,
       agentId: args.agentId,
       ...metadata,
     }))
+    fleetLog('info', 'agent.started', {
+      run: args.runId,
+      agent: logAgentId(args.agentId),
+      objective: args.objective,
+    })
     const history: Array<{ call: ResearchToolCall; result: ResearchToolResult }> = []
     try {
       for (let turn = 0; turn < 8; turn += 1) {
@@ -163,6 +217,7 @@ export class RunCoordinator {
           ...metadata,
           activity: turn === 0 ? 'Planning research' : 'Reviewing evidence',
         }))
+        const workerStartedAt = Date.now()
         const response = await this.worker.respond(
           {
             question: args.question,
@@ -172,6 +227,14 @@ export class RunCoordinator {
           },
           args.signal,
         )
+        fleetLog('info', 'worker.responded', {
+          run: args.runId,
+          agent: logAgentId(args.agentId),
+          model: this.worker.name,
+          turn: turn + 1,
+          response: response.kind,
+          durationMs: Date.now() - workerStartedAt,
+        })
         if (response.kind === 'finding') {
           this.journal.append(args.runId, (metadata) => ({
             kind: 'agent.succeeded',
@@ -180,6 +243,13 @@ export class RunCoordinator {
             ...metadata,
             finding: response.finding,
           }))
+          fleetLog('info', 'agent.succeeded', {
+            run: args.runId,
+            agent: logAgentId(args.agentId),
+            durationMs: Date.now() - agentStartedAt,
+            toolCalls: history.length,
+            findingChars: response.finding.length,
+          })
           return response.finding
         }
         const startedAt = new Date().toISOString()
@@ -191,6 +261,12 @@ export class RunCoordinator {
           input: response.call.kind === 'search' ? response.call.query : response.call.url,
           startedAt,
         }
+        fleetLog('info', 'tool.started', {
+          run: args.runId,
+          agent: logAgentId(args.agentId),
+          tool: response.call.kind,
+          input: runningTrace.input,
+        })
         this.journal.append(args.runId, (metadata) => ({
           kind: 'tool.started',
           runId: args.runId,
@@ -199,6 +275,7 @@ export class RunCoordinator {
           trace: runningTrace,
         }))
         try {
+          const toolStartedAt = Date.now()
           const result = await this.tools.execute(response.call, args.signal)
           history.push({ call: response.call, result })
           this.journal.append(args.runId, (metadata) => ({
@@ -213,8 +290,22 @@ export class RunCoordinator {
               result,
             },
           }))
+          fleetLog('info', 'tool.succeeded', {
+            run: args.runId,
+            agent: logAgentId(args.agentId),
+            tool: response.call.kind,
+            durationMs: Date.now() - toolStartedAt,
+            results: result.kind === 'search' ? result.results.length : undefined,
+            contentChars: result.kind === 'fetch' ? result.text.length : undefined,
+          })
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Tool call failed'
+          fleetLog('error', 'tool.failed', {
+            run: args.runId,
+            agent: logAgentId(args.agentId),
+            tool: response.call.kind,
+            error: message,
+          })
           this.journal.append(args.runId, (metadata) => ({
             kind: 'tool.failed',
             runId: args.runId,
@@ -233,6 +324,13 @@ export class RunCoordinator {
       throw new Error('Agent exceeded its tool-turn limit')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Agent failed'
+      fleetLog('error', 'agent.failed', {
+        run: args.runId,
+        agent: logAgentId(args.agentId),
+        durationMs: Date.now() - agentStartedAt,
+        toolCalls: history.length,
+        error: message,
+      })
       this.journal.append(args.runId, (metadata) => ({
         kind: 'agent.failed',
         runId: args.runId,

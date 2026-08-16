@@ -23,9 +23,7 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Open the URL printed by Vite. Development runs are deterministic by default, so the complete interface works without credentials.
-
-To exercise real workers, add `SAIL_API_KEY` and `BROWSERBASE_API_KEY`, then select the `live-workers` profile. Add `AI_GATEWAY_API_KEY` for fully live synthesis with `openai/gpt-5.6-sol`.
+Open the URL printed by Vite. The interface launches full fleets, so local use requires `SAIL_API_KEY`, `BROWSERBASE_API_KEY`, and `AI_GATEWAY_API_KEY`. Each run uses Sail researchers, Browserbase tools, and AI Gateway synthesis with `openai/gpt-5.6-sol`.
 
 ## Verify the build
 
