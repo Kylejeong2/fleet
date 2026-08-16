@@ -44,6 +44,7 @@ export class SailWorkerModel implements WorkerModel {
   }
 
   async respond(turn: WorkerTurn, signal: AbortSignal): Promise<WorkerResponse> {
+    // Sail's DeepSeek V4 Flash is ASAP-only and rejects background or idempotent requests.
     const response = await fetch(`${this.baseUrl}/responses`, {
       method: 'POST',
       headers: {

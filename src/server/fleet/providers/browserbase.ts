@@ -27,7 +27,7 @@ export class BrowserbaseResearchTools implements ResearchTools {
 
   async execute(call: ResearchToolCall, signal: AbortSignal): Promise<ResearchToolResult> {
     if (call.kind === 'search') {
-      const response = await this.#requestBeforeAcceptanceRetry('/search', {
+      const response = await this.#request('/search', {
         query: call.query.slice(0, 200),
         numResults: MAX_SEARCH_RESULTS,
       }, signal)
@@ -42,7 +42,7 @@ export class BrowserbaseResearchTools implements ResearchTools {
       }
     }
     const url = z.string().url().parse(call.url)
-    const response = await this.#requestBeforeAcceptanceRetry('/fetch', {
+    const response = await this.#request('/fetch', {
       url,
       allowRedirects: true,
       allowInsecureSsl: false,
@@ -61,26 +61,20 @@ export class BrowserbaseResearchTools implements ResearchTools {
     }
   }
 
-  async #requestBeforeAcceptanceRetry(
+  async #request(
     path: string,
     body: object,
     signal: AbortSignal,
   ): Promise<Response> {
-    const request = () =>
-      fetch(`${this.baseUrl}${path}`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-bb-api-key': this.apiKey,
-        },
-        body: JSON.stringify(body),
-        signal,
-      })
-    try {
-      return await request()
-    } catch (firstError) {
-      if (signal.aborted) throw firstError
-      return request()
-    }
+    // A network exception cannot prove Browserbase rejected a paid call, so do not duplicate it.
+    return fetch(`${this.baseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-bb-api-key': this.apiKey,
+      },
+      body: JSON.stringify(body),
+      signal,
+    })
   }
 }
