@@ -6,12 +6,12 @@ import type { AgentSnapshot, RunSnapshot } from '../lib/fleet-protocol'
 const MAX_VISIBLE_BOATS = 50
 
 const territories = [
-  { label: 'Primary sources', x: 13, y: 27, world: new THREE.Vector3(-8.4, 0, -5.8) },
-  { label: 'History', x: 32, y: 15, world: new THREE.Vector3(-4.2, 0, -8.5) },
-  { label: 'Contradictions', x: 68, y: 15, world: new THREE.Vector3(4.2, 0, -8.5) },
-  { label: 'Benchmarks', x: 87, y: 27, world: new THREE.Vector3(8.4, 0, -5.8) },
-  { label: 'Economics', x: 82, y: 67, world: new THREE.Vector3(7.1, 0, 1.6) },
-  { label: 'Edge cases', x: 18, y: 67, world: new THREE.Vector3(-7.1, 0, 1.6) },
+  { x: 13, y: 27, world: new THREE.Vector3(-8.4, 0, -5.8) },
+  { x: 32, y: 15, world: new THREE.Vector3(-4.2, 0, -8.5) },
+  { x: 68, y: 15, world: new THREE.Vector3(4.2, 0, -8.5) },
+  { x: 87, y: 27, world: new THREE.Vector3(8.4, 0, -5.8) },
+  { x: 82, y: 67, world: new THREE.Vector3(7.1, 0, 1.6) },
+  { x: 18, y: 67, world: new THREE.Vector3(-7.1, 0, 1.6) },
 ] as const
 
 type OceanAgent = {
@@ -81,19 +81,6 @@ export function ResearchOcean({
       <div className="ocean-vignette" aria-hidden="true" />
       <div className="ocean-horizon" aria-hidden="true" />
 
-      <div className="ocean-territories" aria-label="Research territories">
-        {territories.map((territory) => (
-          <div
-            className="ocean-territory"
-            key={territory.label}
-            style={{ '--territory-x': `${territory.x}%`, '--territory-y': `${territory.y}%` } as CSSProperties}
-          >
-            <i aria-hidden="true" />
-            <span>{territory.label}</span>
-          </div>
-        ))}
-      </div>
-
       {snapshot ? (
         <div className="ocean-agent-access" aria-label="Research agents">
           {agents.flatMap((agent, index) => {
@@ -131,19 +118,6 @@ export function ResearchOcean({
         </div>
       ) : null}
 
-      <div className="ocean-status" aria-live="polite">
-        <span>
-          <i className="status-pulse" />
-          {state === 'ready'
-            ? 'Orchestrator standing by'
-            : state === 'complete'
-              ? 'Synthesis complete'
-              : state === 'synthesizing'
-                ? 'Braiding evidence into one answer'
-                : 'Fleet underway'}
-        </span>
-        <span>{snapshot ? `${completed} returned · ${active} exploring · ${sources.length} live domains` : '50 routes · 6 territories · live evidence'}</span>
-      </div>
     </section>
   )
 }
@@ -247,22 +221,6 @@ function useThreeOcean(
     }))
     scene.add(stars)
 
-    const beaconGroups = territories.map((territory, index) => {
-      const group = new THREE.Group()
-      group.position.copy(territory.world)
-      group.position.y = -.72
-      const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x63e9de, transparent: true, opacity: .34, side: THREE.DoubleSide })
-      const ring = new THREE.Mesh(new THREE.RingGeometry(.22, .29, 40), ringMaterial)
-      ring.rotation.x = -Math.PI / 2
-      group.add(ring)
-      const halo = new THREE.Mesh(new THREE.RingGeometry(.56, .58, 56), ringMaterial.clone())
-      halo.rotation.x = -Math.PI / 2
-      halo.userData.phase = index * .8
-      group.add(halo)
-      scene.add(group)
-      return group
-    })
-
     const boats: THREE.Group[] = []
     const routes: THREE.Line[] = []
     for (let index = 0; index < boatCount; index += 1) {
@@ -342,13 +300,6 @@ function useThreeOcean(
       waterMaterial.uniforms.uEnergy!.value = state.synthesizing ? 1.35 : state.complete ? .82 : .48
       stars.rotation.y = reducedMotion ? 0 : elapsed * .006
       coreLight.intensity = 36 + Math.sin(elapsed * 1.4) * 7 + (state.synthesizing ? 24 : 0)
-
-      beaconGroups.forEach((group, index) => {
-        const halo = group.children[1] as THREE.Mesh
-        const scale = reducedMotion ? 1 : 1 + ((elapsed * .32 + index * .13) % 1) * 1.8
-        halo.scale.setScalar(scale)
-        ;(halo.material as THREE.MeshBasicMaterial).opacity = reducedMotion ? .13 : Math.max(0, .25 - (scale - 1) * .13)
-      })
 
       boats.forEach((boat, index) => {
         const agent = state.agents[index]

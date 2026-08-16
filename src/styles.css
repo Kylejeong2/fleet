@@ -108,9 +108,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .ocean-canvas { position: absolute; inset: 0; width: 100%; height: 100%; outline: none; }
 .ocean-vignette { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(ellipse at 50% 51%, transparent 0 22%, rgb(1 8 13 / 12%) 52%, rgb(1 7 11 / 88%) 100%), linear-gradient(180deg, rgb(1 7 12 / 60%) 0%, transparent 28%, transparent 70%, rgb(1 8 13 / 78%) 100%); }
 .ocean-horizon { position: absolute; top: 31%; right: 0; left: 0; z-index: 1; height: 1px; background: linear-gradient(90deg, transparent 5%, rgb(85 238 226 / 20%), rgb(135 255 245 / 55%) 50%, rgb(85 238 226 / 20%), transparent 95%); box-shadow: 0 0 42px 9px rgb(53 224 211 / 8%); pointer-events: none; }
-.ocean-territories, .ocean-agent-access { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-.ocean-territory { position: absolute; top: var(--territory-y); left: var(--territory-x); display: grid; justify-items: center; gap: 7px; color: #9cd6d0; font-size: 12px; font-weight: 580; letter-spacing: .01em; text-shadow: 0 2px 8px #02090d; transform: translate(-50%, -50%); }
-.ocean-territory i { width: 7px; height: 7px; border: 1px solid #7afff2; border-radius: 50%; background: #73fff1; box-shadow: 0 0 0 6px rgb(87 250 235 / 8%), 0 0 18px #51e4d7; animation: territory-beacon 2.8s ease-out infinite; }
+.ocean-agent-access { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .ocean-agent-target { position: absolute; top: var(--agent-y); left: var(--agent-x); display: grid; width: 27px; height: 27px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 50%; background: transparent; color: transparent; pointer-events: auto; cursor: pointer; transform: translate(-50%, -50%); }
 .ocean-agent-target span { position: absolute; top: 29px; left: 50%; padding: 3px 6px; border: 1px solid rgb(117 255 243 / 24%); border-radius: 5px; background: rgb(2 16 22 / 90%); color: #aefbf4; opacity: 0; font-size: 12px; pointer-events: none; transform: translateX(-50%) translateY(-3px); transition: opacity .14s, transform .14s; }
 .ocean-agent-target:hover span, .ocean-agent-target:focus-visible span { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -119,14 +117,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .ocean-source-stream { position: absolute; right: 12%; bottom: 19%; left: 12%; z-index: 4; display: flex; justify-content: center; gap: 7px; pointer-events: none; }
 .ocean-source-stream span { display: flex; height: 26px; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid rgb(117 255 243 / 19%); border-radius: 7px; background: rgb(2 19 25 / 76%); color: #9fc9c6; box-shadow: 0 7px 24px rgb(0 0 0 / 22%); font-size: 12px; backdrop-filter: blur(8px); animation: source-surface .42s calc(var(--source-index) * .08s) both ease-out; }
 .ocean-source-stream i { width: 4px; height: 4px; border-radius: 50%; background: #66eadd; box-shadow: 0 0 8px #66eadd; }
-.ocean-status { position: absolute; right: 17px; bottom: 13px; left: 17px; z-index: 5; display: flex; align-items: center; justify-content: space-between; color: #789c99; font-size: 12px; pointer-events: none; }
-.ocean-status span { display: flex; align-items: center; gap: 8px; }
-.status-pulse { width: 6px; height: 6px; border-radius: 50%; background: #65eee1; box-shadow: 0 0 0 5px rgb(101 238 225 / 9%), 0 0 13px #65eee1; animation: ocean-pulse 1.8s ease-in-out infinite; }
 .research-ocean.complete { height: 220px; border-color: #5d5630; transition: height .5s ease, border-color .5s ease; }
 .response .research-ocean { margin: 4px 0 20px; }
 .response .research-ocean.complete { height: 190px; }
-@keyframes territory-beacon { 0%, 100% { box-shadow: 0 0 0 3px rgb(87 250 235 / 11%), 0 0 15px #51e4d7; } 50% { box-shadow: 0 0 0 10px rgb(87 250 235 / 0%), 0 0 24px #51e4d7; } }
-@keyframes ocean-pulse { 50% { opacity: .58; box-shadow: 0 0 0 9px rgb(101 238 225 / 2%), 0 0 18px #65eee1; } }
 @keyframes source-surface { from { opacity: 0; transform: translateY(9px) scale(.96); } }
 .messages { overflow: auto; overscroll-behavior-y: contain; padding: 26px var(--chat-gutter) 34px; scrollbar-color: #b9bbb6 transparent; scrollbar-gutter: stable; scrollbar-width: thin; }
 .messages::-webkit-scrollbar { width: 10px; }
@@ -390,7 +383,6 @@ details[open] > summary .reasoning-chevron { transform: rotate(180deg); }
 :root[data-theme="dark"] .not-found { background: var(--panel); }
 :root[data-theme="dark"] .not-found a { color: #b9bcb6; }
 :root[data-theme="dark"] .research-ocean { border-color: #294945; background: #020b12; color: #c9fff9; box-shadow: inset 0 1px rgb(255 255 255 / 3%), 0 18px 50px rgb(0 0 0 / 24%); }
-:root[data-theme="dark"] .ocean-status { color: #8baca8; }
 
 @media (max-width: 980px) {
   .fleet-dialog { grid-template-columns: minmax(0, 1fr) 300px; }
@@ -412,10 +404,6 @@ details[open] > summary .reasoning-chevron { transform: rotate(180deg); }
   .research-composer textarea { min-height: 94px; font-size: 17px; }
   .composer-controls { flex-wrap: wrap; }
   .launch-button { flex: 1; justify-content: center; }
-  .ocean-territories { top: 48px; right: 10px; bottom: auto; left: 10px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px 6px; }
-  .ocean-territory { position: static; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; transform: none; }
-  .ocean-territory i { width: 5px; height: 5px; flex: 0 0 5px; }
-  .ocean-status > span:last-child { display: none; }
   .ocean-source-stream { right: 4%; bottom: 17%; left: 4%; overflow: hidden; justify-content: flex-start; }
   .ocean-source-stream span:nth-child(n + 4) { display: none; }
   .research-activity-stream { max-height: 52vh; }
