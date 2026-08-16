@@ -32,6 +32,8 @@ const eventKinds: FleetEvent['kind'][] = [
   'agent.planned',
   'agent.started',
   'agent.activity',
+  'agent.reasoning',
+  'orchestrator.activity',
   'tool.started',
   'tool.succeeded',
   'tool.failed',
@@ -222,6 +224,7 @@ function FleetHome() {
         throw new Error(message)
       }
       setSnapshot(RunSnapshotSchema.parse(body))
+      setQuestion('')
     } catch (startError) {
       setError(errorMessage(startError))
     } finally {
@@ -512,6 +515,7 @@ function FleetDialog(props: {
               <i style={{ width: `${(props.completeCount / props.snapshot.agentCount) * 100}%` }} />
             </div>
           </div>
+          <OrchestratorPanel snapshot={props.snapshot} onSelectAgent={props.onSelectAgent} />
           <div className="agent-grid" aria-label="Research agents">
             {props.snapshot.agents.length ? props.snapshot.agents.map((agent, index) => (
               <AgentCard
@@ -527,6 +531,44 @@ function FleetDialog(props: {
         <TracePanel agent={props.selectedAgent} index={Math.max(0, props.snapshot.agents.indexOf(props.selectedAgent!))} />
       </section>
     </div>
+  )
+}
+
+function OrchestratorPanel({
+  snapshot,
+  onSelectAgent,
+}: {
+  snapshot: RunSnapshot
+  onSelectAgent: (id: string) => void
+}) {
+  return (
+    <details className="orchestrator-panel" open>
+      <summary>
+        <span className="orchestrator-mark" aria-hidden="true"><FleetMark /></span>
+        <span><strong>Orchestrator reasoning</strong><small>Live planning and subagent dispatch</small></span>
+        <ChevronDown className="reasoning-chevron" aria-hidden="true" size={17} strokeWidth={1.8} />
+      </summary>
+      <div className="orchestrator-stream" aria-live="polite">
+        {snapshot.orchestratorTrace.length ? snapshot.orchestratorTrace.map((entry) => (
+          <div className="orchestrator-entry" key={entry.sequence}>
+            <span>{entry.phase}</span>
+            <p>{entry.message}</p>
+          </div>
+        )) : <p className="empty-trace">The orchestrator is interpreting the question.</p>}
+        {snapshot.agents.length ? (
+          <div className="dispatch-stream">
+            <div className="trace-label">Subagent invocations</div>
+            {snapshot.agents.map((agent, index) => (
+              <button type="button" key={agent.id} onClick={() => onSelectAgent(agent.id)}>
+                <span>A{index + 1}</span>
+                <span><strong>{agentNames[index % agentNames.length]}</strong><small>{agent.objective}</small></span>
+                <em className={agent.status}>{displayStatus(agent.status)}</em>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </details>
   )
 }
 
@@ -575,7 +617,21 @@ function TracePanel({ agent, index }: { agent: AgentSnapshot | null; index: numb
             <p className="trace-objective">{agent.objective}</p>
           </div>
           <div className="trace-events">
-            <div className="trace-label">Tool activity</div>
+            <details className="agent-reasoning" open>
+              <summary>
+                <span><strong>Model reasoning</strong><small>{agent.reasoning.length ? `${agent.reasoning.length} live ${agent.reasoning.length === 1 ? 'update' : 'updates'}` : 'Waiting for first response'}</small></span>
+                <ChevronDown className="reasoning-chevron" aria-hidden="true" size={16} strokeWidth={1.8} />
+              </summary>
+              <div className="agent-reasoning-stream" aria-live="polite">
+                {agent.reasoning.length ? agent.reasoning.map((entry, reasoningIndex) => (
+                  <div key={entry.sequence}>
+                    <span>Step {reasoningIndex + 1}</span>
+                    <p>{entry.text}</p>
+                  </div>
+                )) : <p className="empty-trace">The model’s first reasoning summary will stream here before its tool call.</p>}
+              </div>
+            </details>
+            <div className="trace-label tool-activity-label">Tool calls</div>
             {agent.trace.length ? agent.trace.map((trace) => {
               const isExpanded = Boolean(expanded[trace.id])
               return (
