@@ -2,10 +2,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 import { CreateRunInputSchema } from '../../../lib/fleet-protocol'
 import {
-  getFleetService,
   IdempotencyConflictError,
   ProfileNotReadyError,
 } from '../../../server/fleet/service'
+import { getFleetRuntime, RunStartPendingError } from '../../../server/fleet/runtime'
 
 const IdempotencyKeySchema = z.string().trim().min(1).max(200)
 
@@ -18,7 +18,7 @@ export const Route = createFileRoute('/api/v1/runs')({
           const input = CreateRunInputSchema.parse(body)
           const rawKey = request.headers.get('idempotency-key')
           const idempotencyKey = rawKey ? IdempotencyKeySchema.parse(rawKey) : null
-          const snapshot = getFleetService().createRun({ input, idempotencyKey })
+          const snapshot = await getFleetRuntime().createRun({ input, idempotencyKey })
           return Response.json(snapshot, { status: 202 })
         } catch (error) {
           if (error instanceof z.ZodError) {
@@ -32,6 +32,12 @@ export const Route = createFileRoute('/api/v1/runs')({
           }
           if (error instanceof ProfileNotReadyError) {
             return Response.json({ error: error.message }, { status: 503 })
+          }
+          if (error instanceof RunStartPendingError) {
+            return Response.json(
+              { error: error.message },
+              { status: 425, headers: { 'retry-after': '1' } },
+            )
           }
           throw error
         }

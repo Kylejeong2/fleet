@@ -1,18 +1,24 @@
 import ipaddr from 'ipaddr.js'
 import { z } from 'zod'
 
-export const RunIdSchema = z.string().uuid().brand<'RunId'>()
+const LocalRunIdPattern = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+const WorkflowRunIdPattern = 'wrun_[0-9A-HJKMNP-TV-Z]{26}'
+
+export const RunIdSchema = z
+  .string()
+  .regex(new RegExp(`^(?:${LocalRunIdPattern}|${WorkflowRunIdPattern})$`, 'i'))
+  .brand<'RunId'>()
 export type RunId = z.infer<typeof RunIdSchema>
 
 export const AgentIdSchema = z
   .string()
-  .regex(/^[0-9a-f-]{36}:agent-[1-9][0-9]*$/)
+  .regex(new RegExp(`^(?:${LocalRunIdPattern}|${WorkflowRunIdPattern}):agent-[1-9][0-9]*$`, 'i'))
   .brand<'AgentId'>()
 export type AgentId = z.infer<typeof AgentIdSchema>
 
 export const ToolCallIdSchema = z
   .string()
-  .regex(/^[0-9a-f-]{36}:agent-[1-9][0-9]*:tool-[1-9][0-9]*$/)
+  .regex(new RegExp(`^(?:${LocalRunIdPattern}|${WorkflowRunIdPattern}):agent-[1-9][0-9]*:tool-[1-9][0-9]*$`, 'i'))
   .brand<'ToolCallId'>()
 export type ToolCallId = z.infer<typeof ToolCallIdSchema>
 
@@ -218,6 +224,16 @@ export const FleetEventSchema = z.discriminatedUnion('kind', [
   z.object({ ...EventBase, kind: z.literal('run.failed'), error: z.string() }),
 ])
 export type FleetEvent = z.infer<typeof FleetEventSchema>
+export type FleetEventDraft = FleetEvent extends infer Event
+  ? Event extends FleetEvent
+    ? Omit<Event, 'sequence'>
+    : never
+  : never
+
+export const materializeFleetEvent = (
+  draft: FleetEventDraft,
+  sequence: number,
+): FleetEvent => parseFleetEvent({ ...draft, sequence: createEventSeq(sequence) })
 
 const AgentSnapshotSchema = z.object({
   id: AgentIdSchema,

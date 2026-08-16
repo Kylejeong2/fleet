@@ -28,6 +28,8 @@ Constraints:
 
 The service responds as soon as the run is durably accepted. Provider work continues asynchronously. Repeating the same body and `Idempotency-Key` returns the original run. Reusing the key with a different body returns a conflict.
 
+On Vercel, accepted IDs use the `wrun_…` Workflow format. A concurrent duplicate may briefly return `425 Too Early` with `Retry-After: 1` while its atomic idempotency reservation is being committed. Callers should retry the same request and key.
+
 ## Read a run
 
 ```http

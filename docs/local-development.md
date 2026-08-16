@@ -16,6 +16,8 @@ pnpm dev
 
 The default database is `.fleet/fleet.sqlite`. The directory is ignored by Git. Delete only that specific file when you intentionally want a fresh local journal.
 
+Local mode is the default outside Vercel. Set `FLEET_EXECUTION_MODE=workflow` to exercise the durable Workflow adapter locally. Calls with an `Idempotency-Key` additionally require the Redis REST variables shown in `.env.example`; calls without that header do not.
+
 ## Runtime logs
 
 `pnpm dev` prints one structured line for every important fleet transition: run planning, agent starts, model responses, Search and Fetch calls, synthesis, failures, and final duration. Logs include short inputs and result sizes, but never credentials or fetched page bodies. Set `FLEET_LOG_LEVEL=silent` when you need a quiet terminal.

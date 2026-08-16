@@ -8,8 +8,8 @@ When inference is cheap enough, breadth becomes a feature. Fleet spends addition
 
 - A TanStack Start chat interface with live orchestration activity in the conversation plus a compact fleet modal and per-agent trace drawer.
 - An HTTP research service that is independent of React and reusable by other clients.
-- A replayable Server-Sent Events protocol backed by an ordered SQLite journal.
-- Bounded parallel workers with isolated failures and explicit provider activity.
+- A replayable Server-Sent Events protocol backed locally by SQLite and on Vercel by a durable Workflow stream.
+- Durable, bounded parallel workers with isolated failures, exponential retries, and explicit provider activity.
 - Deterministic development adapters for local work without paid API calls.
 - Live Sail and Browserbase adapters, plus GPT-5.6 Sol synthesis through Vercel AI Gateway.
 
@@ -33,6 +33,12 @@ pnpm check
 
 `pnpm check` type-checks the application, runs unit and integration tests, and creates the production build. Verify the visible research flow against `pnpm dev` in the Browser plugin.
 
+## Deploy on Vercel
+
+Fleet automatically selects its Vercel Workflow runtime when `VERCEL` is present. A request starts one durable workflow, fans research agents into concurrency-bounded step batches, and returns immediately with a Workflow run ID. Agents and synthesis can retry independently without depending on the lifetime of the HTTP function that accepted the run.
+
+Configure the provider variables in `.env.example`. Add a Vercel KV or Upstash Redis integration if callers use `Idempotency-Key`; Redis stores only the short request-to-workflow reservation, while Workflow owns execution state and the resumable event stream. `FLEET_EXECUTION_MODE=workflow` can force this path outside Vercel, and `local` can force the SQLite path.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -45,6 +51,6 @@ pnpm check
 - [Live verification](docs/live-verification.md)
 - [Operations and limits](docs/operations.md)
 
-## Status
+## Runtime model
 
-Fleet is a complete single-host implementation. SQLite, in-process coordination, and the event stream are deliberate first-release choices. The stable HTTP boundary leaves room for a separate worker service and PostgreSQL without changing browser or future Slack clients.
+The HTTP routes depend on one runtime boundary. Local development uses SQLite and an in-process coordinator for speed. Vercel production uses durable Workflow steps and streams, so no server instance, local disk, or in-memory singleton owns an active run.

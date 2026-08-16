@@ -2,7 +2,7 @@
 
 Fleet runs many web researchers against one question and returns one cited answer. The browser calls Fleet through HTTP. The research engine does not import React, TanStack Start, or browser state.
 
-This document explains the first complete implementation. The design keeps the service boundary stable while using a single Node.js process and SQLite for local execution.
+The same HTTP contract has two runtime adapters. Local development uses a single Node.js process and SQLite. Vercel uses durable Workflow steps and a Workflow stream, so a run is independent from the function invocation that accepted it.
 
 ## Caller contract
 
@@ -42,11 +42,19 @@ Agent and tool states use discriminated unions. A completed tool call always has
 
 ## Execution ownership
 
-One `RunCoordinator` owns transitions for one run. Research agents run concurrently, but they report typed facts to the coordinator. Agents never mutate the journal or shared run state.
+The local `RunCoordinator` owns transitions for one run. Research agents run concurrently, but they report typed facts to the coordinator. Agents never mutate shared run state.
 
 The coordinator uses a bounded work queue. It starts no more than the configured concurrency. One agent failure does not cancel its siblings. Synthesis starts after every planned agent reaches a terminal state. At least one successful agent is required.
 
-The first implementation runs the coordinator in the Fleet server process. SQLite stores committed events and idempotency records. On startup, the service can replay incomplete runs and reconcile their projection. The SQLite adapter is a local and single-host implementation. A future production service can replace it with PostgreSQL without changing the HTTP protocol or the reducer.
+The Vercel adapter starts `fleetResearchWorkflow` and returns its `wrun_…` ID immediately. Planning, each research agent, and synthesis are durable steps. Agent steps fan out in batches sized to the requested concurrency; each batch can run on separate serverless compute and the next batch begins only after the current one settles. A failed agent does not cancel its siblings.
+
+Transient agent and synthesis failures become Workflow retries with capped exponential delay. Starting a retry emits a fresh `agent.started` or `synthesis.started` event, and the reducer clears output from the failed attempt so clients never combine two attempts.
+
+The Workflow writable stream is the production event journal. Routes rebuild a snapshot by replaying available chunks and serve live SSE directly from the durable readable stream. This removes local disk, process affinity, background promises, and in-memory subscriptions from the production path.
+
+`FleetRuntime` is the boundary used by the routes. `LocalFleetRuntime` keeps SQLite and the in-process coordinator for fast deterministic development. `WorkflowFleetRuntime` owns Vercel execution. The protocol, reducer, and browser do not know which adapter produced the events.
+
+Workflow start does not accept an application idempotency key. Fleet therefore uses an atomic Redis reservation only when a caller supplies `Idempotency-Key`. It maps the request hash to the Workflow run ID and rejects conflicting reuse. Workflow remains the source of truth for the run itself.
 
 ## Provider boundaries
 
@@ -82,14 +90,12 @@ The route owns the current run, selected agent, and composer settings for this s
 
 The main conversation owns the live orchestrator messages, subagent reasoning summaries, and expandable Search and Fetch activity. Fleet opens only when requested and dedicates two-thirds of its compact modal to a scrollable grid of bot-and-name agent cards; selecting one updates the one-third trace drawer. The answer uses a safe Markdown renderer without raw HTML: HTTP source links open externally, while exact `#fleet-agent=` links become compact buttons that open Fleet on the cited agent. Closing a layer restores focus to its trigger. Reduced-motion mode removes movement while keeping text status and progress.
 
-## Deferred production machinery
+## Production boundaries
 
-The first build does not add a separate event broker, Redis, Kafka, encrypted artifact storage, cancellation, multi-host leases, or global admission SQL. None of those change the user experience that this build must prove.
-
-The event journal, provider ports, idempotent start operation, and cursor protocol preserve the path to a long-lived service. A production deployment can move execution into a dedicated worker and replace SQLite with PostgreSQL without changing browser or Slack clients.
+Vercel Workflow supplies durable orchestration, queueing, retry, and event streaming. Redis is limited to HTTP idempotency reservations; Fleet does not use it as a queue or event broker. Cancellation, encrypted artifacts, tenant admission limits, and retention controls remain separate production concerns.
 
 ## Design synthesis
 
 Three independent architecture candidates converged on a journal-first service and replayable event stream. Candidate 2 became the base because it handled provider recovery and browser state ownership most precisely. The implementation adopts candidate 1's conservative external retry rule and candidate 3's cursor recovery behavior.
 
-The first build compresses the proposed multi-package layout into one application with clear server-only modules. This keeps the common trace under three files while preserving the HTTP boundary.
+The application keeps its server-only modules together while preserving the runtime and provider boundaries. Most callers traverse route → runtime → protocol regardless of deployment target.

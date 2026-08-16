@@ -3,8 +3,10 @@ import {
   createAgentId,
   createEventSeq,
   createRunId,
+  createToolCallId,
   HttpUrlSchema,
   isPublicIpAddress,
+  parseRunId,
   type FleetEvent,
   type RunSnapshot,
 } from '../../lib/fleet-protocol'
@@ -22,6 +24,13 @@ const acceptedEvent = (): Extract<FleetEvent, { kind: 'run.accepted' }> => ({
 })
 
 describe('Fleet reducer', () => {
+  it('accepts Vercel Workflow run IDs and their derived child IDs', () => {
+    const runId = parseRunId('wrun_01JNXQEH6Z7R4D9ATK2M8CPV5B')
+    const agentId = createAgentId(runId, 0)
+    expect(agentId).toBe(`${runId}:agent-1`)
+    expect(createToolCallId(agentId, 0)).toBe(`${agentId}:tool-1`)
+  })
+
   it('accepts only HTTP and HTTPS research URLs', () => {
     expect(HttpUrlSchema.parse('https://example.com/research')).toBe(
       'https://example.com/research',
@@ -85,5 +94,40 @@ describe('Fleet reducer', () => {
     const result = reduceEvent(snapshot, gap)
     expect(result.kind).toBe('gap')
     if (result.kind === 'gap') expect(result.expected).toBe(2)
+  })
+
+  it('clears stale agent state when a durable step retries', () => {
+    const accepted = acceptedEvent()
+    const agentId = createAgentId(accepted.runId, 0)
+    const at = new Date().toISOString()
+    const snapshot = replayEvents([
+      accepted,
+      { kind: 'agent.planned', runId: accepted.runId, sequence: createEventSeq(2), at, agentId, objective: 'Verify claims' },
+      { kind: 'agent.started', runId: accepted.runId, sequence: createEventSeq(3), at, agentId },
+      { kind: 'agent.reasoning', runId: accepted.runId, sequence: createEventSeq(4), at, agentId, reasoning: 'First attempt' },
+      { kind: 'agent.failed', runId: accepted.runId, sequence: createEventSeq(5), at, agentId, error: '503 overloaded' },
+      { kind: 'agent.started', runId: accepted.runId, sequence: createEventSeq(6), at, agentId },
+    ])
+    expect(snapshot?.agents[0]).toMatchObject({
+      status: 'running',
+      reasoning: [],
+      trace: [],
+      finding: null,
+      error: null,
+    })
+  })
+
+  it('clears partial synthesis output when a durable synthesis step retries', () => {
+    const accepted = acceptedEvent()
+    const at = new Date().toISOString()
+    const snapshot = replayEvents([
+      accepted,
+      { kind: 'synthesis.started', runId: accepted.runId, sequence: createEventSeq(2), at, synthesizer: 'test' },
+      { kind: 'orchestrator.reasoning.delta', runId: accepted.runId, sequence: createEventSeq(3), at, delta: 'Old reasoning' },
+      { kind: 'synthesis.delta', runId: accepted.runId, sequence: createEventSeq(4), at, delta: 'Old answer' },
+      { kind: 'synthesis.started', runId: accepted.runId, sequence: createEventSeq(5), at, synthesizer: 'test' },
+    ])
+    expect(snapshot?.orchestratorReasoning).toBe('')
+    expect(snapshot?.partialAnswer).toBe('')
   })
 })

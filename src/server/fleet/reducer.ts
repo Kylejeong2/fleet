@@ -29,7 +29,15 @@ const updateAgent = (
     if (agent.id !== event.agentId) return agent
     switch (event.kind) {
       case 'agent.started':
-        return { ...agent, status: 'running', activity: 'Starting research' }
+        return {
+          ...agent,
+          status: 'running',
+          activity: 'Starting research',
+          reasoning: [],
+          trace: [],
+          finding: null,
+          error: null,
+        }
       case 'agent.activity':
         return { ...agent, activity: event.activity }
       case 'agent.reasoning':
@@ -125,7 +133,13 @@ export const reduceEvent = (snapshot: RunSnapshot, event: FleetEvent): ReplayRes
       }
       break
     case 'synthesis.started':
-      next = { ...snapshot, status: 'synthesizing', synthesizer: event.synthesizer }
+      next = {
+        ...snapshot,
+        status: 'synthesizing',
+        synthesizer: event.synthesizer,
+        orchestratorReasoning: '',
+        partialAnswer: '',
+      }
       break
     case 'synthesis.delta':
       next = { ...snapshot, partialAnswer: snapshot.partialAnswer + event.delta }

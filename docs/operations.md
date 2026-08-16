@@ -1,16 +1,22 @@
 # Operations and limits
 
-Fleet's first implementation is designed for one long-running Node.js process.
+Fleet supports a local single-process runtime and a durable Vercel runtime.
 
 ## Readiness
 
 Provider readiness depends on the selected profile. Development requires no external credentials. Live workers require Sail and Browserbase keys. Fully live runs also require an AI Gateway key. Missing configuration must reject a run before paid work starts.
 
+## Runtime selection
+
+With no override, Fleet uses Workflow when `VERCEL` is present and local execution elsewhere. Set `FLEET_EXECUTION_MODE=workflow` or `local` only to override that detection.
+
 ## Persistence
 
-SQLite stores events and idempotency records. Keep the database on persistent local storage and back it up as one application data file. The journal uses write-ahead logging and one process owns coordination.
+Local mode stores events and idempotency records in SQLite. Keep the database on persistent local storage and let one process own coordination.
 
-Do not run multiple Fleet server instances against the same SQLite file over network storage. Moving to multiple hosts requires a shared transactional database, run leases, and a cross-process event notification mechanism.
+Workflow mode stores execution history and stream chunks in Vercel's durable Workflow system. HTTP functions can scale independently and do not require process affinity or a writable filesystem. A Vercel KV or Upstash Redis REST integration is required only when clients send `Idempotency-Key`.
+
+Do not run multiple local-mode instances against the same SQLite file over network storage.
 
 ## Limits
 
@@ -20,11 +26,11 @@ Do not run multiple Fleet server instances against the same SQLite file over net
 - One failed worker does not cancel its siblings.
 - Synthesis requires at least one successful worker.
 
-The request-level concurrency limit is not a global admission controller. Production deployments should add tenant quotas and a process-wide concurrency budget before accepting untrusted traffic.
+The per-run concurrency limit is not a global admission controller. Production deployments should add tenant quotas before accepting untrusted traffic.
 
 ## Recovery
 
-The journal can reconstruct a run from committed events. On an unexpected restart, inspect incomplete runs before resuming provider work. The first implementation does not promise exactly-once external model or tool calls across a crash boundary.
+In local mode, the SQLite journal reconstructs a run from committed events. In Workflow mode, durable steps resume after interruption and retry transient failures. External provider operations remain at-least-once across a crash boundary, so provider adapters must avoid unsafe side effects.
 
 SSE consumers recover by replaying after their last committed sequence. A missing sequence triggers a snapshot refresh.
 
@@ -38,4 +44,4 @@ SSE consumers recover by replaying after their last committed sequence. A missin
 
 ## Deferred capabilities
 
-Cancellation, encrypted artifacts, distributed leases, a shared event broker, and PostgreSQL are intentionally outside the first single-host release. The HTTP and event contracts are designed so those changes do not require a new browser client.
+Cancellation, encrypted artifacts, tenant quotas, and explicit retention policies remain outside this release. The HTTP and event contracts allow those changes without a new browser client.

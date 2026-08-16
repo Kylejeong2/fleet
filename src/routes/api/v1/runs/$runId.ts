@@ -1,14 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 import { parseRunId } from '../../../../lib/fleet-protocol'
-import { getFleetService, RunNotFoundError } from '../../../../server/fleet/service'
+import { RunNotFoundError } from '../../../../server/fleet/service'
+import { getFleetRuntime } from '../../../../server/fleet/runtime'
 
 export const Route = createFileRoute('/api/v1/runs/$runId')({
   server: {
     handlers: {
-      GET: ({ params }) => {
+      GET: async ({ params }) => {
         try {
-          return Response.json(getFleetService().getRun(parseRunId(params.runId)))
+          return Response.json(await getFleetRuntime().getRun(parseRunId(params.runId)))
         } catch (error) {
           if (error instanceof z.ZodError) {
             return Response.json({ error: 'Invalid run ID' }, { status: 400 })

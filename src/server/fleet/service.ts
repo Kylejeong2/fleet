@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import {
   createRunId,
   type CreateRunInput,
@@ -8,25 +7,13 @@ import {
   type RunSnapshot,
 } from '../../lib/fleet-protocol'
 import { RunCoordinator } from './coordinator'
+import { createFleetDependencies, ProfileNotReadyError } from './dependencies'
 import { FleetJournal } from './journal'
-import { DevelopmentResearchTools, DevelopmentSynthesizer, DevelopmentWorkerModel } from './providers/development'
-import { BrowserbaseResearchTools } from './providers/browserbase'
-import { GatewaySynthesizer } from './providers/gateway'
-import { SailWorkerModel } from './providers/sail'
 import { replayEvents } from './reducer'
-
-const EnvironmentSchema = z.object({
-  SAIL_API_KEY: z.string().min(1).optional(),
-  BROWSERBASE_API_KEY: z.string().min(1).optional(),
-  AI_GATEWAY_API_KEY: z.string().min(1).optional(),
-  SAIL_BASE_URL: z.string().url().default('https://api.sailresearch.com/v1'),
-  SAIL_RESEARCH_MODEL: z.string().default('deepseek-ai/DeepSeek-V4-Flash'),
-  AI_GATEWAY_ORCHESTRATOR_MODEL: z.string().default('openai/gpt-5.6-sol'),
-})
 
 export class IdempotencyConflictError extends Error {}
 export class RunNotFoundError extends Error {}
-export class ProfileNotReadyError extends Error {}
+export { ProfileNotReadyError } from './dependencies'
 
 export class FleetService {
   constructor(
@@ -73,40 +60,10 @@ export const createFleetService = (args?: {
   databasePath?: string
   environment?: NodeJS.ProcessEnv
 }): FleetService => {
-  const environment = EnvironmentSchema.parse(args?.environment ?? process.env)
   const journal = new FleetJournal(args?.databasePath)
   return new FleetService(journal, (profile) => {
-    if (profile === 'development') {
-      return new RunCoordinator(
-        journal,
-        new DevelopmentWorkerModel(),
-        new DevelopmentResearchTools(),
-        new DevelopmentSynthesizer(),
-      )
-    }
-    if (!environment.SAIL_API_KEY || !environment.BROWSERBASE_API_KEY) {
-      throw new ProfileNotReadyError(
-        'Live workers require SAIL_API_KEY and BROWSERBASE_API_KEY.',
-      )
-    }
-    const worker = new SailWorkerModel(
-      environment.SAIL_API_KEY,
-      environment.SAIL_BASE_URL,
-      environment.SAIL_RESEARCH_MODEL,
-    )
-    const tools = new BrowserbaseResearchTools(environment.BROWSERBASE_API_KEY)
-    if (profile === 'live-workers') {
-      return new RunCoordinator(journal, worker, tools, new DevelopmentSynthesizer())
-    }
-    if (!environment.AI_GATEWAY_API_KEY) {
-      throw new ProfileNotReadyError('Live mode requires AI_GATEWAY_API_KEY.')
-    }
-    return new RunCoordinator(
-      journal,
-      worker,
-      tools,
-      new GatewaySynthesizer(environment.AI_GATEWAY_ORCHESTRATOR_MODEL),
-    )
+    const dependencies = createFleetDependencies(profile, args?.environment)
+    return new RunCoordinator(journal, dependencies.worker, dependencies.tools, dependencies.synthesizer)
   })
 }
 
