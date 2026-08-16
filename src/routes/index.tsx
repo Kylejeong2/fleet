@@ -63,6 +63,8 @@ const agentNames = [
   'Claim checker',
 ]
 
+const agentCountOptions = [1, 3, 6, 12, 25, 50, 100] as const
+
 const botPalettes = [
   { shell: '#c9dcf5', shellLight: '#f4f8ff', accent: '#5579b3', accentSoft: '#d9e6f7', eye: '#25446f' },
   { shell: '#ead7bd', shellLight: '#fff9f0', accent: '#a9773c', accentSoft: '#f1e2ce', eye: '#63431f' },
@@ -325,21 +327,19 @@ function WelcomeComposer(props: {
           autoFocus
         />
         <div className="composer-controls">
-          <label className="number-control">
+          <label className="select-control agent-count-control">
             <span className="sr-only">Number of agents</span>
-            <input
-              type="number"
+            <select
               aria-label="Number of agents"
-              min={1}
-              max={100}
-              list="agent-count-presets"
               value={props.agentCount}
-              onChange={(event) => props.setAgentCount(Math.max(1, Math.min(100, Number(event.target.value))))}
-            />
-            <span>{props.agentCount === 1 ? 'agent' : 'agents'}</span>
-            <datalist id="agent-count-presets">
-              {[1, 3, 6, 12, 25, 50, 100].map((count) => <option key={count} value={count} />)}
-            </datalist>
+              onChange={(event) => props.setAgentCount(Number(event.target.value))}
+            >
+              {agentCountOptions.map((count) => (
+                <option key={count} value={count}>
+                  {count} {count === 1 ? 'agent' : 'agents'}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="select-control">
             <span className="sr-only">Execution profile</span>

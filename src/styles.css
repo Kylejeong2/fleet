@@ -59,9 +59,10 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .research-composer textarea { display: block; width: 100%; min-height: 112px; padding: 3px 4px; resize: none; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 16px; line-height: 1.5; }
 .research-composer textarea::placeholder, .follow-up-composer input::placeholder { color: #9a9a94; }
 .composer-controls { display: flex; align-items: center; gap: 7px; margin-top: 10px; }
-.select-control select { height: 34px; padding: 0 28px 0 10px; border: 1px solid #deded9; border-radius: 9px; background: #fafaf8; color: #595a55; font-size: 12px; cursor: pointer; }
-.number-control { display: flex; height: 34px; align-items: center; gap: 3px; padding: 0 9px; border: 1px solid #deded9; border-radius: 9px; background: #fafaf8; color: #595a55; font-size: 12px; }
-.number-control input { width: 40px; padding: 0; border: 0; outline: 0; background: transparent; color: inherit; font-variant-numeric: tabular-nums; }
+.select-control { position: relative; display: block; }
+.select-control::after { position: absolute; top: 50%; right: 12px; width: 6px; height: 6px; border-right: 1.5px solid #777872; border-bottom: 1.5px solid #777872; content: ""; pointer-events: none; transform: translateY(-70%) rotate(45deg); }
+.select-control select { width: 136px; height: 34px; padding: 0 30px 0 11px; appearance: none; border: 1px solid #deded9; border-radius: 9px; background: #fafaf8; color: #595a55; font-size: 12px; cursor: pointer; }
+.agent-count-control select { width: 108px; font-variant-numeric: tabular-nums; }
 .launch-button { display: flex; height: 34px; align-items: center; gap: 8px; margin-left: auto; padding: 0 11px; border: 0; border-radius: 9px; background: #1c1d1b; color: #fff; cursor: pointer; font-size: 12px; }
 .launch-button:disabled, .follow-up-composer button:disabled { cursor: not-allowed; opacity: .42; }
 
@@ -197,7 +198,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 }
 
 @media (max-width: 400px) {
-  .select-control, .number-control { flex: 1 1 calc(50% - 4px); }
+  .select-control { flex: 1 1 calc(50% - 4px); }
   .select-control select { width: 100%; }
   .agent-grid { grid-template-columns: 1fr 1fr; padding-inline: 8px; }
   .agent-card { height: 124px; }

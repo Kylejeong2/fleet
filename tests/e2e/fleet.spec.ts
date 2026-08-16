@@ -7,10 +7,27 @@ const askFleet = async (page: Page, count = '6') => {
   await page.getByLabel('Research question').fill(
     'Compare the strongest approaches to reliable browser agent infrastructure.',
   )
-  await page.getByLabel('Number of agents').fill(count)
+  await page.getByLabel('Number of agents').selectOption(count)
   await page.getByRole('button', { name: 'Launch fleet' }).click()
   await expect(page.getByRole('dialog', { name: 'Research fleet' })).toBeVisible()
 }
+
+test('offers stable agent-count presets with twelve selected by default', async ({ page }) => {
+  await page.goto('/')
+  const agentCount = page.getByLabel('Number of agents')
+  await expect(agentCount).toHaveValue('12')
+  await expect(agentCount.locator('option')).toHaveText([
+    '1 agent',
+    '3 agents',
+    '6 agents',
+    '12 agents',
+    '25 agents',
+    '50 agents',
+    '100 agents',
+  ])
+  await agentCount.selectOption('50')
+  await expect(agentCount).toHaveValue('50')
+})
 
 test('runs research and exposes the real fleet trace', async ({ page }) => {
   await askFleet(page)
