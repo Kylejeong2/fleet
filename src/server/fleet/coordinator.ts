@@ -13,6 +13,7 @@ import type {
   ResearchToolResult,
   ResearchTools,
   Synthesizer,
+  SynthesisInput,
   WorkerModel,
 } from './ports'
 
@@ -95,7 +96,7 @@ export class RunCoordinator {
       })
 
       let cursor = 0
-      const findings: Array<{ objective: string; finding: string }> = []
+      const findings: SynthesisInput['findings'] = []
       const runners = Array.from(
         { length: Math.min(input.concurrency, assignments.length) },
         async () => {
@@ -109,7 +110,7 @@ export class RunCoordinator {
               ...assignment,
               signal,
             })
-            if (finding) findings.push({ objective: assignment.objective, finding })
+            if (finding) findings.push(finding)
           }
         },
       )
@@ -194,7 +195,7 @@ export class RunCoordinator {
     objective: string
     question: string
     signal: AbortSignal
-  }): Promise<string | null> {
+  }): Promise<SynthesisInput['findings'][number] | null> {
     const agentStartedAt = Date.now()
     this.journal.append(args.runId, (metadata) => ({
       kind: 'agent.started',
@@ -250,7 +251,12 @@ export class RunCoordinator {
             toolCalls: history.length,
             findingChars: response.finding.length,
           })
-          return response.finding
+          return {
+            agentId: args.agentId,
+            objective: args.objective,
+            finding: response.finding,
+            sources: synthesisSources(history),
+          }
         }
         const startedAt = new Date().toISOString()
         const toolId = createToolCallId(args.agentId, history.length)
@@ -277,6 +283,7 @@ export class RunCoordinator {
         try {
           const toolStartedAt = Date.now()
           const result = await this.tools.execute(response.call, args.signal)
+          if (result.kind === 'error') throw new Error(result.message)
           history.push({ call: response.call, result })
           this.journal.append(args.runId, (metadata) => ({
             kind: 'tool.succeeded',
@@ -318,7 +325,10 @@ export class RunCoordinator {
               error: message,
             },
           }))
-          throw error
+          history.push({
+            call: response.call,
+            result: { kind: 'error', message },
+          })
         }
       }
       throw new Error('Agent exceeded its tool-turn limit')
@@ -341,4 +351,18 @@ export class RunCoordinator {
       return null
     }
   }
+}
+
+const synthesisSources = (
+  history: Array<{ call: ResearchToolCall; result: ResearchToolResult }>,
+): Array<{ title: string; url: string }> => {
+  const sources = new Map<string, string>()
+  for (const { result } of history) {
+    if (result.kind === 'search') {
+      for (const source of result.results) sources.set(source.url, source.title)
+    } else if (result.kind === 'fetch') {
+      sources.set(result.url, result.title)
+    }
+  }
+  return Array.from(sources, ([url, title]) => ({ title, url }))
 }

@@ -39,6 +39,20 @@ class ToolWorker implements WorkerModel {
   }
 }
 
+class RecoveringToolWorker implements WorkerModel {
+  readonly name = 'recovering-tool-worker'
+
+  async respond(turn: WorkerTurn): Promise<WorkerResponse> {
+    if (turn.history.length === 0) {
+      return { kind: 'tool-call', call: { kind: 'search', query: turn.question } }
+    }
+    if (turn.history.length === 1) {
+      return { kind: 'tool-call', call: { kind: 'fetch', url: 'https://blocked.example' } }
+    }
+    return { kind: 'finding', finding: 'Finding recovered from search evidence' }
+  }
+}
+
 class Tools implements ResearchTools {
   async execute(call: ResearchToolCall): Promise<ResearchToolResult> {
     if (call.kind === 'fetch') {
@@ -51,12 +65,21 @@ class Tools implements ResearchTools {
   }
 }
 
+class FetchFailingTools extends Tools {
+  override async execute(call: ResearchToolCall): Promise<ResearchToolResult> {
+    if (call.kind === 'fetch') throw new Error('Fetched page returned 403')
+    return super.execute(call)
+  }
+}
+
 class CountingSynthesizer implements Synthesizer {
   readonly name = 'counting-synthesizer'
   handoffs = 0
+  lastInput: SynthesisInput | null = null
 
   async *stream(input: SynthesisInput): AsyncIterable<string> {
     this.handoffs += 1
+    this.lastInput = input
     yield `Synthesized ${input.findings.length} findings`
   }
 }
@@ -95,17 +118,47 @@ describe('RunCoordinator', () => {
     const journal = new FleetJournal(':memory:')
     const input = runInput(1, 1)
     const runId = createAcceptedRun(journal, input)
+    const synthesizer = new CountingSynthesizer()
     await new RunCoordinator(
       journal,
       new ToolWorker(),
       new Tools(),
-      new CountingSynthesizer(),
+      synthesizer,
     ).run(runId, input)
     const events = journal.read(runId)
     expect(events.some((event) => event.kind === 'tool.started')).toBe(true)
     expect(events.some((event) => event.kind === 'tool.succeeded')).toBe(true)
     const snapshot = replayEvents(events)
     expect(snapshot?.agents[0]?.trace[0]?.status).toBe('succeeded')
+    expect(synthesizer.lastInput?.findings[0]?.agentId).toBe(snapshot?.agents[0]?.id)
+    expect(synthesizer.lastInput?.findings[0]?.sources).toEqual([
+      { title: 'Source', url: 'https://example.com' },
+    ])
+    journal.close()
+  })
+
+  it('records a failed tool call but lets the agent synthesize prior evidence', async () => {
+    const journal = new FleetJournal(':memory:')
+    const input = runInput(1, 1)
+    const runId = createAcceptedRun(journal, input)
+    const synthesizer = new CountingSynthesizer()
+
+    await new RunCoordinator(
+      journal,
+      new RecoveringToolWorker(),
+      new FetchFailingTools(),
+      synthesizer,
+    ).run(runId, input)
+
+    const snapshot = replayEvents(journal.read(runId))
+    expect(snapshot?.status).toBe('completed')
+    expect(snapshot?.agents[0]?.trace.map((trace) => trace.status)).toEqual([
+      'succeeded',
+      'failed',
+    ])
+    expect(synthesizer.lastInput?.findings[0]?.sources).toEqual([
+      { title: 'Source', url: 'https://example.com' },
+    ])
     journal.close()
   })
 })

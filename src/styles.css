@@ -82,7 +82,31 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .response { width: min(780px, 100%); margin: 24px auto 0; }
 .response-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 610; }
 .research-icon { display: inline-flex; width: 25px; height: 25px; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid #d5d5d2; border-radius: 7px; background: #fafaf9; color: #4e504b; }
-.answer-text p, .progress-copy { margin: 0 0 13px; line-height: 1.62; white-space: pre-wrap; }
+.answer-text { color: #272825; font-size: 14px; line-height: 1.68; }
+.answer-text > :first-child { margin-top: 0; }
+.answer-text > :last-child { margin-bottom: 0; }
+.answer-text h1, .answer-text h2, .answer-text h3 { margin: 25px 0 9px; color: #1d1e1c; letter-spacing: -.02em; line-height: 1.25; }
+.answer-text h1 { font-size: 22px; }
+.answer-text h2 { padding-bottom: 6px; border-bottom: 1px solid var(--line-soft); font-size: 18px; }
+.answer-text h3 { font-size: 15px; }
+.answer-text p { margin: 0 0 14px; }
+.answer-text ul, .answer-text ol { margin: 0 0 16px; padding-left: 22px; }
+.answer-text li { margin: 4px 0; padding-left: 2px; }
+.answer-text li::marker { color: #81837e; }
+.answer-text strong { color: #1b1c1a; font-weight: 650; }
+.answer-text a { display: inline-flex; align-items: baseline; gap: 3px; color: #315f91; font-weight: 530; text-decoration-color: rgb(49 95 145 / 35%); text-underline-offset: 2px; }
+.answer-text a:hover { text-decoration-color: currentColor; }
+.answer-text a svg { flex: 0 0 auto; }
+.answer-text blockquote { margin: 0 0 16px; padding: 2px 0 2px 13px; border-left: 2px solid #c9cac5; color: #5d5f5a; }
+.answer-text code { padding: 1px 4px; border-radius: 4px; background: #f1f1ee; font-size: .9em; }
+.answer-text pre { overflow: auto; margin: 0 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: #f7f7f5; }
+.answer-text pre code { padding: 0; background: transparent; }
+.answer-text table { width: 100%; margin: 0 0 18px; border-collapse: collapse; font-size: 13px; }
+.answer-text th, .answer-text td { padding: 8px 9px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+.answer-text th { background: #f5f5f2; font-weight: 620; }
+.agent-citation { display: inline-flex; min-width: 24px; height: 18px; align-items: center; justify-content: center; margin: 0 2px; padding: 0 5px; border: 1px solid #cfd5dc; border-radius: 5px; background: #f4f7fa; color: #45617f; cursor: pointer; font-size: 10px; font-weight: 650; line-height: 1; vertical-align: super; }
+.agent-citation:hover { border-color: #9faeba; background: #eaf0f5; }
+.progress-copy { margin: 0 0 13px; line-height: 1.62; white-space: pre-wrap; }
 .progress-copy { color: #5f605c; }
 .typing { display: inline-flex; gap: 3px; margin-left: 2px; }
 .typing i { width: 3px; height: 3px; border-radius: 50%; background: #7d7d79; animation: blink 1.2s infinite; }

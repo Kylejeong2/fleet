@@ -7,6 +7,7 @@ export type ResearchToolCall =
 export type ResearchToolResult =
   | { kind: 'search'; results: SearchResult[] }
   | { kind: 'fetch'; url: string; title: string; text: string }
+  | { kind: 'error'; message: string }
 
 export type WorkerTurn = {
   question: string
@@ -33,7 +34,12 @@ export interface ResearchTools {
 
 export type SynthesisInput = {
   question: string
-  findings: Array<{ objective: string; finding: string }>
+  findings: Array<{
+    agentId: AgentId
+    objective: string
+    finding: string
+    sources: Array<{ title: string; url: string }>
+  }>
 }
 
 export interface Synthesizer {

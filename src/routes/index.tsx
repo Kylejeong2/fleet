@@ -3,6 +3,8 @@ import * as SelectPrimitive from '@radix-ui/react-select'
 import { ArrowUp, Check, ChevronDown, ExternalLink, Search as SearchIcon } from 'lucide-react'
 import { domAnimation, LazyMotion, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   useEffect,
   useId,
@@ -222,6 +224,12 @@ function FleetHome() {
     requestAnimationFrame(() => fleetButtonRef.current?.focus())
   }
 
+  function openAgentTrace(agentId: string) {
+    if (!snapshot?.agents.some((agent) => agent.id === agentId)) return
+    setSelectedAgentId(agentId)
+    setFleetOpen(true)
+  }
+
   return (
     <LazyMotion features={domAnimation} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
@@ -231,7 +239,7 @@ function FleetHome() {
           <span className="conversation-title">Fleet research</span>
           {snapshot ? (
             <span className="run-meta">
-              {snapshot.agentCount} agents
+              {snapshot.agentCount} {snapshot.agentCount === 1 ? 'agent' : 'agents'}
               <i className={`status-light ${snapshot.status}`} aria-hidden="true" />
             </span>
           ) : null}
@@ -249,7 +257,7 @@ function FleetHome() {
         </header>
 
         {snapshot ? (
-          <ResearchConversation snapshot={snapshot} />
+          <ResearchConversation snapshot={snapshot} onOpenAgent={openAgentTrace} />
         ) : (
           <WelcomeComposer
             question={question}
@@ -403,7 +411,13 @@ function FleetSelect(props: {
   )
 }
 
-function ResearchConversation({ snapshot }: { snapshot: RunSnapshot }) {
+function ResearchConversation({
+  snapshot,
+  onOpenAgent,
+}: {
+  snapshot: RunSnapshot
+  onOpenAgent: (agentId: string) => void
+}) {
   const answer = snapshot.finalAnswer ?? snapshot.partialAnswer
   return (
     <div className="messages" aria-live="polite">
@@ -414,7 +428,9 @@ function ResearchConversation({ snapshot }: { snapshot: RunSnapshot }) {
           <span>{responseTitle(snapshot)}</span>
           {snapshot.status === 'running' || snapshot.status === 'synthesizing' ? <TypingDots /> : null}
         </header>
-        {answer ? <AnswerText text={answer} /> : <ResearchProgress snapshot={snapshot} />}
+        {answer
+          ? <AnswerText text={answer} onOpenAgent={onOpenAgent} />
+          : <ResearchProgress snapshot={snapshot} />}
         {snapshot.error ? <p className="inline-error" role="alert">{snapshot.error}</p> : null}
       </article>
     </div>
@@ -450,7 +466,7 @@ function FleetDialog(props: {
           <div className="objective-block">
             <div>
               <strong>{trimQuestion(props.snapshot.question)}</strong>
-              <p>{props.snapshot.agentCount} independent research angles feeding one synthesis.</p>
+              <p>{props.snapshot.agentCount} independent research {props.snapshot.agentCount === 1 ? 'angle' : 'angles'} feeding one synthesis.</p>
             </div>
             <div
               className="overall-progress"
@@ -475,7 +491,7 @@ function FleetDialog(props: {
             )) : <AgentSkeletons count={Math.min(props.snapshot.agentCount, 12)} />}
           </div>
           <footer className="fleet-foot">
-            <div><strong>{props.snapshot.agentCount} agents, one shared brief</strong><span>Each worker keeps an isolated trace</span></div>
+            <div><strong>{props.snapshot.agentCount} {props.snapshot.agentCount === 1 ? 'agent' : 'agents'}, one shared brief</strong><span>Each worker keeps an isolated trace</span></div>
             <span className={`run-state ${props.snapshot.status}`}>{displayStatus(props.snapshot.status)}</span>
           </footer>
         </div>
@@ -685,8 +701,52 @@ function TypingDots() {
   return <span className="typing" aria-label="In progress"><i /><i /><i /></span>
 }
 
-function AnswerText({ text }: { text: string }) {
-  return <div className="answer-text">{text.split(/\n{2,}/).filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)}</div>
+function AnswerText({
+  text,
+  onOpenAgent,
+}: {
+  text: string
+  onOpenAgent: (agentId: string) => void
+}) {
+  return (
+    <div className="answer-text">
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ href, children }) => {
+            if (href?.startsWith('#fleet-agent=')) {
+              const encodedId = href.slice('#fleet-agent='.length)
+              let agentId = encodedId
+              try {
+                agentId = decodeURIComponent(encodedId)
+              } catch {
+                return <span>{children}</span>
+              }
+              return (
+                <button
+                  className="agent-citation"
+                  type="button"
+                  title="Open the supporting agent trace"
+                  onClick={() => onOpenAgent(agentId)}
+                >
+                  {children}
+                </button>
+              )
+            }
+            if (!href || !/^https?:\/\//i.test(href)) return <span>{children}</span>
+            return (
+              <a href={href} target="_blank" rel="noreferrer">
+                {children}
+                <ExternalLink aria-hidden="true" size={11} strokeWidth={1.8} />
+              </a>
+            )
+          },
+        }}
+      >
+        {text}
+      </Markdown>
+    </div>
+  )
 }
 
 function ResearchProgress({ snapshot }: { snapshot: RunSnapshot }) {

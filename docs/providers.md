@@ -37,7 +37,9 @@ BROWSERBASE_API_KEY
 
 ## Gateway synthesis
 
-The live synthesizer uses the Vercel AI SDK and AI Gateway model `openai/gpt-5.6-sol`. It receives successful worker findings and streams one cited answer. Its real text deltas become `synthesis.delta` events.
+The live synthesizer uses the Vercel AI SDK and AI Gateway model `openai/gpt-5.6-sol`. It receives each successful finding together with its agent ID and deduplicated Search and Fetch sources. The prompt requires detailed Markdown, inline links using only supplied URLs, and exact agent citation links that the interface resolves back to the supporting trace. Its real text deltas become `synthesis.delta` events.
+
+A failed individual tool call remains visible in the agent trace and counts against its research budget. If the agent already has evidence, it may continue and produce a finding instead of losing the whole research angle because one page rejected Fetch.
 
 Required variable:
 

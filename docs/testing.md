@@ -8,7 +8,7 @@ Fleet tests the event invariant first, then the visible experience.
 pnpm check
 ```
 
-This command runs TypeScript validation, Vitest, and the production build. Unit and integration coverage includes ordered reduction, duplicate and gap handling, journal idempotency, bounded concurrency, isolated worker failure, Search and Fetch trace transitions, and exactly one synthesis phase.
+This command runs TypeScript validation, Vitest, and the production build. Unit and integration coverage includes ordered reduction, duplicate and gap handling, journal idempotency, bounded concurrency, isolated worker failure, recoverable tool failure, Search and Fetch trace transitions, source and agent citation handoff, and exactly one synthesis phase.
 
 ## Browser verification
 
