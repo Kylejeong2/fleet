@@ -28,7 +28,7 @@ describe('BrowserbaseResearchTools', () => {
         { kind: 'fetch', url: 'file:///etc/passwd' },
         new AbortController().signal,
       ),
-    ).rejects.toThrow('HTTP or HTTPS')
+    ).rejects.toThrow('public HTTP or HTTPS')
     expect(request).not.toHaveBeenCalled()
   })
 })

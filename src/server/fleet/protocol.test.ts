@@ -27,6 +27,9 @@ describe('Fleet reducer', () => {
     )
     expect(() => HttpUrlSchema.parse('ftp://example.com/archive')).toThrow()
     expect(() => HttpUrlSchema.parse('file:///etc/passwd')).toThrow()
+    expect(() => HttpUrlSchema.parse('http://127.0.0.1/private')).toThrow()
+    expect(() => HttpUrlSchema.parse('http://localhost/private')).toThrow()
+    expect(() => HttpUrlSchema.parse('http://[::1]/private')).toThrow()
   })
 
   it('replays ordered events into a snapshot', () => {

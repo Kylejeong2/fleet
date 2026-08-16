@@ -18,12 +18,40 @@ export type ToolCallId = z.infer<typeof ToolCallIdSchema>
 export const EventSeqSchema = z.number().int().positive().brand<'EventSeq'>()
 export type EventSeq = z.infer<typeof EventSeqSchema>
 
-export const HttpUrlSchema = z
-  .string()
-  .url()
-  .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
-    message: 'URL must use HTTP or HTTPS',
-  })
+const isPublicHttpUrl = (value: string): boolean => {
+  const url = new URL(value)
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal') ||
+    hostname.includes(':')
+  ) {
+    return false
+  }
+  const octets = hostname.split('.').map(Number)
+  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part))) return true
+  const [first, second] = octets
+  if (first === undefined || second === undefined) return false
+  return !(
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && [0, 2, 168].includes(second)) ||
+    (first === 198 && [18, 19, 51].includes(second)) ||
+    (first === 203 && second === 0) ||
+    first >= 224
+  )
+}
+
+export const HttpUrlSchema = z.string().url().refine(isPublicHttpUrl, {
+  message: 'URL must be a public HTTP or HTTPS URL',
+})
 
 export const parseRunId = (value: unknown): RunId => RunIdSchema.parse(value)
 export const createRunId = (): RunId => RunIdSchema.parse(crypto.randomUUID())
