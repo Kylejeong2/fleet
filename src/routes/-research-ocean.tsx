@@ -79,7 +79,6 @@ export function ResearchOcean({
     >
       <canvas ref={canvasRef} className="ocean-canvas" aria-hidden="true" />
       <div className="ocean-vignette" aria-hidden="true" />
-      <div className="ocean-horizon" aria-hidden="true" />
 
       {snapshot ? (
         <div className="ocean-agent-access" aria-label="Research agents">
