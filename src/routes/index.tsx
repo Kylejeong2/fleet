@@ -1,6 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
 import * as SelectPrimitive from '@radix-ui/react-select'
-import { ArrowUp, Check, ChevronDown, ExternalLink, Moon, Search as SearchIcon, Sun } from 'lucide-react'
+import {
+  ArrowUp,
+  Brain,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ExternalLink,
+  LoaderCircle,
+  Moon,
+  Search as SearchIcon,
+  Sun,
+  XCircle,
+} from 'lucide-react'
 import { domAnimation, LazyMotion, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import Markdown from 'react-markdown'
@@ -583,56 +595,131 @@ function ResearchActivity({
   onOpenAgent: (id: string) => void
 }) {
   const running = snapshot.status === 'running' || snapshot.status === 'synthesizing'
+  const answerStarted = snapshot.partialAnswer.length > 0 || snapshot.finalAnswer !== null
+  const [open, setOpen] = useState(!answerStarted)
+  const wasAnswerStarted = useRef(answerStarted)
   const started = snapshot.agents.filter((agent) => agent.status !== 'planned').length
+  const visibleAgents = snapshot.agents.filter((agent) => agent.status !== 'planned')
+
+  useEffect(() => {
+    if (answerStarted && !wasAnswerStarted.current) setOpen(false)
+    wasAnswerStarted.current = answerStarted
+  }, [answerStarted])
+
   return (
-    <details className="research-activity" open={running}>
-      <summary>
+    <section
+      className={`research-activity ${open ? 'open' : 'collapsed'} ${answerStarted ? 'answer-started' : ''}`}
+      aria-label="Live fleet activity"
+    >
+      <button
+        className="activity-toggle"
+        type="button"
+        aria-expanded={open}
+        aria-label={open ? 'Hide fleet activity' : 'Show fleet activity'}
+        aria-controls="live-fleet-activity"
+        onClick={() => setOpen((current) => !current)}
+      >
         <span className="orchestrator-mark" aria-hidden="true"><FleetMark /></span>
-        <span>
+        <span className="activity-toggle-copy">
           <strong>Live fleet activity</strong>
           <small>{started} of {snapshot.agentCount} subagents invoked · reasoning and tool calls</small>
         </span>
-        <ChevronDown className="reasoning-chevron" aria-hidden="true" size={17} strokeWidth={1.8} />
-      </summary>
-      <div className="research-activity-stream" aria-live="polite">
-        <section className="orchestrator-chat" aria-label="Orchestrator reasoning">
-          <h3>Orchestrator</h3>
-          {snapshot.orchestratorTrace.length ? snapshot.orchestratorTrace.map((entry) => (
-            <div className="orchestrator-entry" key={entry.sequence}>
-              <span>{entry.phase}</span>
-              <p>{entry.message}</p>
-            </div>
-          )) : <p className="empty-trace">Interpreting the question and preparing the fleet.</p>}
-          {snapshot.orchestratorReasoning ? (
-            <div className="orchestrator-model-stream">
-              <span>Model reasoning</span>
-              <Markdown remarkPlugins={[remarkGfm]}>{snapshot.orchestratorReasoning}</Markdown>
-            </div>
-          ) : null}
-        </section>
-        <section className="main-agent-stream" aria-label="Subagent reasoning and tool calls">
-          <h3>Subagent traces</h3>
-          {snapshot.agents.map((agent, index) => (
-            <AgentActivityRow
-              key={agent.id}
-              agent={agent}
-              index={index}
-              onOpen={() => onOpenAgent(agent.id)}
-            />
-          ))}
-        </section>
-      </div>
-    </details>
+        <ChevronDown className="activity-chevron" aria-hidden="true" size={17} strokeWidth={1.8} />
+      </button>
+      {open ? (
+        <div id="live-fleet-activity" className="research-activity-stream" aria-live="polite">
+          <div className="activity-event-list" aria-label="Orchestrator activity">
+            {snapshot.orchestratorTrace.length ? snapshot.orchestratorTrace.map((entry, index) => (
+              <div className="activity-event-row" key={entry.sequence}>
+                <ActivityStatusIcon complete={!running || index < snapshot.orchestratorTrace.length - 1} />
+                <strong>{entry.phase}</strong>
+                <small>{entry.message}</small>
+              </div>
+            )) : (
+              <div className="activity-event-row">
+                <ActivityStatusIcon complete={false} />
+                <strong>Planning</strong>
+                <small>Interpreting the question and preparing the fleet.</small>
+              </div>
+            )}
+            {snapshot.orchestratorReasoning ? (
+              <ReasoningDisclosure
+                text={snapshot.orchestratorReasoning}
+                isStreaming={snapshot.status === 'synthesizing' && !answerStarted}
+              />
+            ) : null}
+            {visibleAgents.map((agent) => {
+              const index = snapshot.agents.indexOf(agent)
+              return (
+                <AgentActivityRow
+                  key={agent.id}
+                  agent={agent}
+                  index={index}
+                  onOpen={() => onOpenAgent(agent.id)}
+                />
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+function ActivityStatusIcon({ complete }: { complete: boolean }) {
+  return complete
+    ? <CheckCircle2 className="activity-status-icon complete" aria-hidden="true" size={16} strokeWidth={1.8} />
+    : <LoaderCircle className="activity-status-icon running" aria-hidden="true" size={16} strokeWidth={1.8} />
+}
+
+function ReasoningDisclosure({ text, isStreaming }: { text: string; isStreaming: boolean }) {
+  const [open, setOpen] = useState(isStreaming)
+  const dismissedWhileStreaming = useRef(false)
+  const wasStreaming = useRef(isStreaming)
+
+  useEffect(() => {
+    const started = isStreaming && !wasStreaming.current
+    if (started && !dismissedWhileStreaming.current) setOpen(true)
+    if (!isStreaming && wasStreaming.current) dismissedWhileStreaming.current = false
+    wasStreaming.current = isStreaming
+  }, [isStreaming])
+
+  function toggle() {
+    setOpen((current) => {
+      if (current && isStreaming) dismissedWhileStreaming.current = true
+      return !current
+    })
+  }
+
+  return (
+    <div className={`streamed-reasoning ${open ? 'open' : ''}`}>
+      <button type="button" onClick={toggle} aria-expanded={open}>
+        <Brain aria-hidden="true" size={16} strokeWidth={1.8} />
+        <strong>{isStreaming ? 'Orchestrator thinking…' : 'Orchestrator reasoning'}</strong>
+        <ChevronDown className="reasoning-chevron" aria-hidden="true" size={15} strokeWidth={1.8} />
+      </button>
+      {open ? (
+        <div className="reasoning-detail subagent-markdown">
+          <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
 function AgentActivityRow(props: { agent: AgentSnapshot; index: number; onOpen: () => void }) {
+  const latestTool = props.agent.trace.at(-1)
   return (
     <details className={`main-agent-row ${props.agent.status}`}>
       <summary>
+        {props.agent.status === 'running'
+          ? <LoaderCircle className="activity-status-icon running" aria-hidden="true" size={16} strokeWidth={1.8} />
+          : props.agent.status === 'failed'
+            ? <XCircle className="activity-status-icon failed" aria-hidden="true" size={16} strokeWidth={1.8} />
+            : <CheckCircle2 className="activity-status-icon complete" aria-hidden="true" size={16} strokeWidth={1.8} />}
         <span>A{props.index + 1}</span>
         <strong>{agentNames[props.index % agentNames.length]}</strong>
-        <small>{props.agent.activity}</small>
+        <small>{latestTool ? `${latestTool.tool === 'search' ? 'Search' : 'Fetch'} · ${latestTool.input}` : props.agent.activity}</small>
         <em>{displayStatus(props.agent.status)}</em>
         <ChevronDown className="reasoning-chevron" aria-hidden="true" size={15} strokeWidth={1.8} />
       </summary>

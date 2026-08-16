@@ -12,6 +12,25 @@ Every factual paragraph must include inline Markdown links to the supporting sou
 
 const oneLine = (value: string): string => value.replace(/\s+/g, ' ').trim()
 
+type GatewayStreamPart = { type: string; text?: string }
+
+export async function* mapGatewayStream(
+  parts: AsyncIterable<GatewayStreamPart>,
+): AsyncIterable<SynthesisStreamPart> {
+  let hasReasoningBlock = false
+  for await (const part of parts) {
+    if (part.type === 'reasoning-start') {
+      if (hasReasoningBlock) yield { kind: 'reasoning-delta', delta: '\n\n' }
+      hasReasoningBlock = true
+    } else if (part.type === 'reasoning-delta' && typeof part.text === 'string') {
+      hasReasoningBlock = true
+      yield { kind: 'reasoning-delta', delta: part.text }
+    } else if (part.type === 'text-delta' && typeof part.text === 'string') {
+      yield { kind: 'text-delta', delta: part.text }
+    }
+  }
+}
+
 export const buildSynthesisPrompt = (input: SynthesisInput): string =>
   `Question: ${input.question}\n\nResearch dossier:\n${input.findings
     .map((item, index) => {
@@ -44,12 +63,6 @@ export class GatewaySynthesizer implements Synthesizer {
       system: SYNTHESIS_SYSTEM_PROMPT,
       prompt: buildSynthesisPrompt(input),
     })
-    for await (const part of result.fullStream) {
-      if (part.type === 'reasoning-delta') {
-        yield { kind: 'reasoning-delta', delta: part.text }
-      } else if (part.type === 'text-delta') {
-        yield { kind: 'text-delta', delta: part.text }
-      }
-    }
+    yield* mapGatewayStream(result.fullStream)
   }
 }
