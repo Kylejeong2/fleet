@@ -122,6 +122,14 @@ describe('SailWorkerModel', () => {
   })
 
   it('retries overloaded inference requests with bounded exponential retry handling', async () => {
+    const activities = [] as Array<{
+      kind: 'retry'
+      operation: 'create' | 'poll'
+      status: number
+      retry: number
+      maxRetries: number
+      delayMs: number
+    }>
     const request = vi.fn()
       .mockResolvedValueOnce(new Response('overloaded', {
         status: 503,
@@ -148,15 +156,20 @@ describe('SailWorkerModel', () => {
         objective: 'Find primary sources',
         agentId: createAgentId(runId, 0),
         history: [],
+        onActivity: (activity) => activities.push(activity),
       },
       new AbortController().signal,
     )
 
     expect(request).toHaveBeenCalledTimes(3)
+    expect(activities).toEqual([
+      { kind: 'retry', operation: 'create', status: 503, retry: 1, maxRetries: 3, delayMs: 0 },
+      { kind: 'retry', operation: 'create', status: 503, retry: 2, maxRetries: 3, delayMs: 0 },
+    ])
     expect(result).toEqual({ kind: 'finding', finding: 'Recovered after overload.' })
   })
 
-  it('stops retrying after six overloaded inference responses', async () => {
+  it('stops after three retries when inference remains overloaded', async () => {
     const request = vi.fn(async () => new Response('overloaded', {
       status: 503,
       headers: { 'retry-after': '0' },
@@ -174,6 +187,6 @@ describe('SailWorkerModel', () => {
       new AbortController().signal,
     )).rejects.toThrow('Sail request failed with 503')
 
-    expect(request).toHaveBeenCalledTimes(6)
+    expect(request).toHaveBeenCalledTimes(4)
   })
 })

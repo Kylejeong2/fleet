@@ -17,6 +17,16 @@ export type WorkerTurn = {
     call: ResearchToolCall
     result: ResearchToolResult
   }>
+  onActivity?: (activity: WorkerActivity) => void
+}
+
+export type WorkerActivity = {
+  kind: 'retry'
+  operation: 'create' | 'poll'
+  status: number
+  retry: number
+  maxRetries: number
+  delayMs: number
 }
 
 export type WorkerResponse =
@@ -42,7 +52,11 @@ export type SynthesisInput = {
   }>
 }
 
+export type SynthesisStreamPart =
+  | { kind: 'reasoning-delta'; delta: string }
+  | { kind: 'text-delta'; delta: string }
+
 export interface Synthesizer {
   readonly name: string
-  stream(input: SynthesisInput, signal: AbortSignal): AsyncIterable<string>
+  stream(input: SynthesisInput, signal: AbortSignal): AsyncIterable<SynthesisStreamPart>
 }

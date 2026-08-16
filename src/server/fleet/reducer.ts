@@ -118,6 +118,12 @@ export const reduceEvent = (snapshot: RunSnapshot, event: FleetEvent): ReplayRes
         ],
       }
       break
+    case 'orchestrator.reasoning.delta':
+      next = {
+        ...snapshot,
+        orchestratorReasoning: snapshot.orchestratorReasoning + event.delta,
+      }
+      break
     case 'synthesis.started':
       next = { ...snapshot, status: 'synthesizing', synthesizer: event.synthesizer }
       break
@@ -152,6 +158,7 @@ export const replayEvents = (events: FleetEvent[]): RunSnapshot | null => {
     profile: accepted.profile,
     status: 'running',
     orchestratorTrace: [],
+    orchestratorReasoning: '',
     agents: [],
     partialAnswer: '',
     finalAnswer: null,

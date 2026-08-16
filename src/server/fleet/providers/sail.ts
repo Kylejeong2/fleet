@@ -38,7 +38,7 @@ const FetchArgumentsSchema = z.object({
   reasoning: ToolReasoningSchema,
 })
 const MAX_RESEARCH_TOOL_CALLS = 3
-const MAX_SAIL_REQUEST_ATTEMPTS = 6
+const MAX_SAIL_REQUEST_RETRIES = 3
 const RETRYABLE_SAIL_STATUSES = new Set([429, 500, 502, 503, 504])
 const BASE_RETRY_DELAY_MS = 750
 const MAX_RETRY_DELAY_MS = 12_000
@@ -133,7 +133,7 @@ export class SailWorkerModel implements WorkerModel {
           ],
         }),
       }),
-    }, signal, 'create')
+    }, signal, 'create', turn.onActivity)
     if (!response.ok) throw new Error(`Sail request failed with ${response.status}`)
     let payload = ResponseSchema.parse(await response.json())
     for (let poll = 0; payload.status === 'queued' || payload.status === 'in_progress'; poll += 1) {
@@ -141,7 +141,7 @@ export class SailWorkerModel implements WorkerModel {
       await sleep(1_000, signal)
       const next = await this.#request(`${this.baseUrl}/responses/${encodeURIComponent(payload.id)}`, {
         headers: { authorization: `Bearer ${this.apiKey}` },
-      }, signal, 'poll')
+      }, signal, 'poll', turn.onActivity)
       if (!next.ok) throw new Error(`Sail polling failed with ${next.status}`)
       payload = ResponseSchema.parse(await next.json())
     }
@@ -188,12 +188,14 @@ export class SailWorkerModel implements WorkerModel {
     init: RequestInit,
     signal: AbortSignal,
     operation: 'create' | 'poll',
+    onActivity: WorkerTurn['onActivity'],
   ): Promise<Response> {
-    for (let attempt = 1; attempt <= MAX_SAIL_REQUEST_ATTEMPTS; attempt += 1) {
+    const maxAttempts = MAX_SAIL_REQUEST_RETRIES + 1
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const response = await fetch(input, { ...init, signal })
       if (
         !RETRYABLE_SAIL_STATUSES.has(response.status) ||
-        attempt === MAX_SAIL_REQUEST_ATTEMPTS
+        attempt === maxAttempts
       ) {
         return response
       }
@@ -203,7 +205,15 @@ export class SailWorkerModel implements WorkerModel {
         operation,
         status: response.status,
         attempt,
-        maxAttempts: MAX_SAIL_REQUEST_ATTEMPTS,
+        maxAttempts,
+        delayMs,
+      })
+      onActivity?.({
+        kind: 'retry',
+        operation,
+        status: response.status,
+        retry: attempt,
+        maxRetries: MAX_SAIL_REQUEST_RETRIES,
         delayMs,
       })
       await response.body?.cancel()

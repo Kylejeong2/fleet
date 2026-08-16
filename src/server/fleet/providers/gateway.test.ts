@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { createRunId, createAgentId } from '../../../lib/fleet-protocol'
-import { buildSynthesisPrompt, SYNTHESIS_SYSTEM_PROMPT } from './gateway'
+import {
+  buildSynthesisPrompt,
+  ORCHESTRATOR_REASONING,
+  SYNTHESIS_SYSTEM_PROMPT,
+} from './gateway'
 
 describe('Gateway synthesis prompt', () => {
+  it('uses medium reasoning for the live orchestrator', () => {
+    expect(ORCHESTRATOR_REASONING).toBe('medium')
+  })
+
   it('carries exact source and agent trace citations into the dossier', () => {
     const agentId = createAgentId(createRunId(), 0)
     const prompt = buildSynthesisPrompt({

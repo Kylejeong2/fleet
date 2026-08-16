@@ -163,17 +163,26 @@ export class RunCoordinator {
         synthesizer: this.synthesizer.name,
       }))
       let answer = ''
-      for await (const delta of this.synthesizer.stream(
+      for await (const part of this.synthesizer.stream(
         { question: input.question, findings },
         signal,
       )) {
-        answer += delta
-        this.journal.append(runId, (metadata) => ({
-          kind: 'synthesis.delta',
-          runId,
-          ...metadata,
-          delta,
-        }))
+        if (part.kind === 'reasoning-delta') {
+          this.journal.append(runId, (metadata) => ({
+            kind: 'orchestrator.reasoning.delta',
+            runId,
+            ...metadata,
+            delta: part.delta,
+          }))
+        } else {
+          answer += part.delta
+          this.journal.append(runId, (metadata) => ({
+            kind: 'synthesis.delta',
+            runId,
+            ...metadata,
+            delta: part.delta,
+          }))
+        }
       }
       this.journal.append(runId, (metadata) => ({
         kind: 'run.completed',
@@ -246,6 +255,24 @@ export class RunCoordinator {
             objective: args.objective,
             agentId: args.agentId,
             history,
+            onActivity: (activity) => {
+              if (activity.kind !== 'retry') return
+              const waitSeconds = Math.max(0.1, activity.delayMs / 1_000).toFixed(1)
+              this.journal.append(args.runId, (metadata) => ({
+                kind: 'agent.activity',
+                runId: args.runId,
+                agentId: args.agentId,
+                ...metadata,
+                activity: `Inference overloaded · retry ${activity.retry} of ${activity.maxRetries} in ${waitSeconds}s`,
+              }))
+              this.journal.append(args.runId, (metadata) => ({
+                kind: 'orchestrator.activity',
+                runId: args.runId,
+                ...metadata,
+                phase: 'recovery',
+                message: `${logAgentId(args.agentId)} received ${activity.status} from inference. Retrying ${activity.retry} of ${activity.maxRetries} in ${waitSeconds}s.`,
+              }))
+            },
           },
           args.signal,
         )
@@ -378,6 +405,13 @@ export class RunCoordinator {
         agentId: args.agentId,
         ...metadata,
         error: message,
+      }))
+      this.journal.append(args.runId, (metadata) => ({
+        kind: 'orchestrator.activity',
+        runId: args.runId,
+        ...metadata,
+        phase: 'recovery',
+        message: `${logAgentId(args.agentId)} stopped after its recovery attempts: ${message}`,
       }))
       return null
     }

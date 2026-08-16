@@ -129,7 +129,7 @@ const ReasoningEntrySchema = z.object({
 const OrchestratorEntrySchema = z.object({
   sequence: EventSeqSchema,
   at: z.string().datetime(),
-  phase: z.enum(['planning', 'dispatch', 'review']),
+  phase: z.enum(['planning', 'dispatch', 'recovery', 'review']),
   message: z.string(),
 })
 
@@ -170,8 +170,13 @@ export const FleetEventSchema = z.discriminatedUnion('kind', [
   z.object({
     ...EventBase,
     kind: z.literal('orchestrator.activity'),
-    phase: z.enum(['planning', 'dispatch', 'review']),
+    phase: z.enum(['planning', 'dispatch', 'recovery', 'review']),
     message: z.string(),
+  }),
+  z.object({
+    ...EventBase,
+    kind: z.literal('orchestrator.reasoning.delta'),
+    delta: z.string(),
   }),
   z.object({
     ...EventBase,
@@ -234,6 +239,7 @@ export const RunSnapshotSchema = z.object({
   profile: RunProfileSchema,
   status: z.enum(['running', 'synthesizing', 'completed', 'failed']),
   orchestratorTrace: z.array(OrchestratorEntrySchema),
+  orchestratorReasoning: z.string(),
   agents: z.array(AgentSnapshotSchema),
   partialAnswer: z.string(),
   finalAnswer: z.string().nullable(),

@@ -6,6 +6,7 @@ import type {
   ResearchTools,
   Synthesizer,
   SynthesisInput,
+  SynthesisStreamPart,
   WorkerModel,
   WorkerResponse,
 } from './ports'
@@ -27,8 +28,9 @@ class UnusedTools implements ResearchTools {
 
 class Synthesis implements Synthesizer {
   readonly name = 'synthesis'
-  async *stream(_input: SynthesisInput): AsyncIterable<string> {
-    yield 'Final answer'
+  async *stream(_input: SynthesisInput): AsyncIterable<SynthesisStreamPart> {
+    yield { kind: 'reasoning-delta', delta: 'Reviewing evidence.' }
+    yield { kind: 'text-delta', delta: 'Final answer' }
   }
 }
 
@@ -55,6 +57,7 @@ describe('Fleet SSE stream', () => {
     const body = await response.text()
     expect(body).not.toContain('id: 1\n')
     expect(body).toContain('event: agent.planned')
+    expect(body).toContain('event: orchestrator.reasoning.delta')
     expect(body).toContain('event: run.completed')
     journal.close()
   })

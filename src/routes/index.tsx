@@ -34,6 +34,7 @@ const eventKinds: FleetEvent['kind'][] = [
   'agent.activity',
   'agent.reasoning',
   'orchestrator.activity',
+  'orchestrator.reasoning.delta',
   'tool.started',
   'tool.succeeded',
   'tool.failed',
@@ -93,6 +94,8 @@ function FleetHome() {
   const fleetButtonRef = useRef<HTMLButtonElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
+  const messagesRef = useRef<HTMLDivElement>(null)
+  const autoScrollRef = useRef(true)
 
   useEffect(() => {
     setHydrated(true)
@@ -140,6 +143,16 @@ function FleetHome() {
   useEffect(() => {
     if (fleetOpen) closeButtonRef.current?.focus()
   }, [fleetOpen])
+
+  useEffect(() => {
+    if (!snapshot || !autoScrollRef.current) return
+    const messages = messagesRef.current
+    if (!messages) return
+    const frame = requestAnimationFrame(() => {
+      messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [snapshot?.latestSequence])
 
   useEffect(() => {
     if (!fleetOpen) return
@@ -201,6 +214,7 @@ function FleetHome() {
     setSnapshot(null)
     setSelectedAgentId(null)
     setFleetOpen(false)
+    autoScrollRef.current = true
     try {
       const response = await fetch('/api/v1/runs', {
         method: 'POST',
@@ -292,7 +306,13 @@ function FleetHome() {
         </header>
 
         {snapshot ? (
-          <ResearchConversation snapshot={snapshot} onOpenAgent={openAgentTrace} />
+          <ResearchConversation
+            snapshot={snapshot}
+            onOpenAgent={openAgentTrace}
+            messagesRef={messagesRef}
+            onBreakAutoScroll={() => { autoScrollRef.current = false }}
+            onReachBottom={() => { autoScrollRef.current = true }}
+          />
         ) : (
           <WelcomeComposer
             question={question}
@@ -448,13 +468,36 @@ function FleetSelect(props: {
 function ResearchConversation({
   snapshot,
   onOpenAgent,
+  messagesRef,
+  onBreakAutoScroll,
+  onReachBottom,
 }: {
   snapshot: RunSnapshot
   onOpenAgent: (agentId: string) => void
+  messagesRef: React.RefObject<HTMLDivElement | null>
+  onBreakAutoScroll: () => void
+  onReachBottom: () => void
 }) {
   const answer = snapshot.finalAnswer ?? snapshot.partialAnswer
   return (
-    <div className="messages" aria-live="polite">
+    <div
+      className="messages"
+      ref={messagesRef}
+      tabIndex={0}
+      aria-label="Research conversation"
+      aria-live="polite"
+      onWheel={(event) => { if (event.deltaY < 0) onBreakAutoScroll() }}
+      onTouchMove={onBreakAutoScroll}
+      onKeyDownCapture={(event) => {
+        if (['ArrowUp', 'PageUp', 'Home'].includes(event.key)) onBreakAutoScroll()
+      }}
+      onScroll={(event) => {
+        const element = event.currentTarget
+        if (element.scrollHeight - element.scrollTop - element.clientHeight < 24) {
+          onReachBottom()
+        }
+      }}
+    >
       <div className="message-column">
         <div className="prompt-bubble">{snapshot.question}</div>
         <article className="response">
@@ -502,7 +545,6 @@ function FleetDialog(props: {
           <div className="objective-block">
             <div>
               <strong>{trimQuestion(props.snapshot.question)}</strong>
-              <p>{props.snapshot.agentCount} independent research {props.snapshot.agentCount === 1 ? 'angle' : 'angles'} feeding one synthesis.</p>
             </div>
             <div
               className="overall-progress"
@@ -561,6 +603,12 @@ function ResearchActivity({
               <p>{entry.message}</p>
             </div>
           )) : <p className="empty-trace">Interpreting the question and preparing the fleet.</p>}
+          {snapshot.orchestratorReasoning ? (
+            <div className="orchestrator-model-stream">
+              <span>Model reasoning</span>
+              <Markdown remarkPlugins={[remarkGfm]}>{snapshot.orchestratorReasoning}</Markdown>
+            </div>
+          ) : null}
         </section>
         <section className="main-agent-stream" aria-label="Subagent reasoning and tool calls">
           <h3>Subagent traces</h3>
@@ -589,32 +637,57 @@ function AgentActivityRow(props: { agent: AgentSnapshot; index: number; onOpen: 
         <ChevronDown className="reasoning-chevron" aria-hidden="true" size={15} strokeWidth={1.8} />
       </summary>
       <div className="main-agent-detail">
-        <div className="main-reasoning-list">
-          <strong>Reasoning</strong>
-          {props.agent.reasoning.length ? props.agent.reasoning.map((entry, index) => (
-            <p key={entry.sequence}><span>{index + 1}</span>{entry.text}</p>
-          )) : <p className="empty-trace">Waiting for the first model response.</p>}
-        </div>
-        <div className="main-tool-list">
-          <strong>Tool calls</strong>
-          {props.agent.trace.length ? props.agent.trace.map((trace) => (
-            <details className={`main-tool-call ${trace.status}`} key={trace.id}>
-              <summary>
-                <span className="tool-icon" aria-hidden="true">
-                  {trace.tool === 'search'
-                    ? <SearchIcon size={13} strokeWidth={1.8} />
-                    : <ExternalLink size={13} strokeWidth={1.8} />}
-                </span>
-                <span><strong>{trace.tool === 'search' ? 'Search' : 'Fetch'}</strong><small>{trace.input}</small></span>
-                <em>{displayStatus(trace.status)}</em>
-              </summary>
-              <pre>{toolDetail(trace)}</pre>
-            </details>
-          )) : <p className="empty-trace">No tool calls yet.</p>}
-        </div>
+        <AgentTimeline agent={props.agent} compact />
         <button className="open-agent-trace" type="button" onClick={props.onOpen}>Open agent trace</button>
       </div>
     </details>
+  )
+}
+
+function AgentTimeline({ agent, compact = false }: { agent: AgentSnapshot; compact?: boolean }) {
+  const entries: Array<
+    | { kind: 'reasoning'; entry: AgentSnapshot['reasoning'][number]; step: number }
+    | { kind: 'tool'; trace: ToolTrace }
+  > = []
+  const entryCount = Math.max(agent.reasoning.length, agent.trace.length)
+  for (let index = 0; index < entryCount; index += 1) {
+    const reasoning = agent.reasoning[index]
+    const trace = agent.trace[index]
+    if (reasoning) entries.push({ kind: 'reasoning', entry: reasoning, step: index + 1 })
+    if (trace) entries.push({ kind: 'tool', trace })
+  }
+
+  if (entries.length === 0) {
+    return <p className="empty-trace">Waiting for the first model response.</p>
+  }
+
+  return (
+    <div className={`agent-timeline ${compact ? 'compact' : ''}`} aria-live="polite">
+      {entries.map((item) => item.kind === 'reasoning' ? (
+        <div className="timeline-reasoning" key={`reasoning-${item.entry.sequence}`}>
+          <span>Step {item.step}</span>
+          <div className="subagent-markdown">
+            <Markdown remarkPlugins={[remarkGfm]}>{item.entry.text}</Markdown>
+          </div>
+        </div>
+      ) : (
+        <details className={`timeline-tool ${item.trace.status}`} key={item.trace.id}>
+          <summary>
+            <span className="tool-icon" aria-hidden="true">
+              {item.trace.tool === 'search'
+                ? <SearchIcon size={13} strokeWidth={1.8} />
+                : <ExternalLink size={13} strokeWidth={1.8} />}
+            </span>
+            <span>
+              <strong>{item.trace.tool === 'search' ? 'Search' : 'Fetch'}</strong>
+              <small>{item.trace.input}</small>
+            </span>
+            <em>{displayStatus(item.trace.status)}</em>
+          </summary>
+          <pre>{toolDetail(item.trace)}</pre>
+        </details>
+      ))}
+    </div>
   )
 }
 
@@ -643,7 +716,6 @@ function AgentSkeletons({ count }: { count: number }) {
 }
 
 function TracePanel({ agent, index }: { agent: AgentSnapshot | null; index: number }) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const sourceCount = agent ? uniqueSourceCount(agent.trace) : 0
   return (
     <aside className="trace-panel" aria-label="Selected agent trace">
@@ -656,43 +728,16 @@ function TracePanel({ agent, index }: { agent: AgentSnapshot | null; index: numb
             <p className="trace-objective">{agent.objective}</p>
           </div>
           <div className="trace-events">
-            <details className="agent-reasoning" open>
-              <summary>
-                <span><strong>Model reasoning</strong><small>{agent.reasoning.length ? `${agent.reasoning.length} live ${agent.reasoning.length === 1 ? 'update' : 'updates'}` : 'Waiting for first response'}</small></span>
-                <ChevronDown className="reasoning-chevron" aria-hidden="true" size={16} strokeWidth={1.8} />
-              </summary>
-              <div className="agent-reasoning-stream" aria-live="polite">
-                {agent.reasoning.length ? agent.reasoning.map((entry, reasoningIndex) => (
-                  <div key={entry.sequence}>
-                    <span>Step {reasoningIndex + 1}</span>
-                    <p>{entry.text}</p>
-                  </div>
-                )) : <p className="empty-trace">The model’s first reasoning summary will stream here before its tool call.</p>}
-              </div>
-            </details>
-            <div className="trace-label tool-activity-label">Tool calls</div>
-            {agent.trace.length ? agent.trace.map((trace) => {
-              const isExpanded = Boolean(expanded[trace.id])
-              return (
-                <div className={`tool-event ${isExpanded ? 'expanded' : ''}`} key={trace.id}>
-                  <button
-                    type="button"
-                    aria-expanded={isExpanded}
-                    onClick={() => setExpanded((current) => ({ ...current, [trace.id]: !isExpanded }))}
-                  >
-                    <span className="tool-icon" aria-hidden="true">
-                      {trace.tool === 'search'
-                        ? <SearchIcon size={13} strokeWidth={1.8} />
-                        : <ExternalLink size={13} strokeWidth={1.8} />}
-                    </span>
-                    <span><strong>{trace.tool === 'search' ? 'Search' : 'Fetch'}</strong><small>{trace.input}</small></span>
-                    <span className="tool-status">{displayStatus(trace.status)} <i aria-hidden="true">›</i></span>
-                  </button>
-                  {isExpanded ? <pre>{toolDetail(trace)}</pre> : null}
+            <div className="trace-label tool-activity-label">Chronological trace</div>
+            <AgentTimeline agent={agent} />
+            {agent.finding ? (
+              <>
+                <div className="trace-label finding-label">Finding</div>
+                <div className="trace-finding subagent-markdown">
+                  <Markdown remarkPlugins={[remarkGfm]}>{agent.finding}</Markdown>
                 </div>
-              )
-            }) : <p className="empty-trace">Tools appear here as this agent works.</p>}
-            {agent.finding ? <><div className="trace-label finding-label">Finding</div><p className="trace-finding">{agent.finding}</p></> : null}
+              </>
+            ) : null}
             {agent.error ? <p className="inline-error">{agent.error}</p> : null}
           </div>
           <footer className="trace-foot"><span>{sourceCount} {sourceCount === 1 ? 'source' : 'sources'}</span><span>{agent.trace.length} tool {agent.trace.length === 1 ? 'call' : 'calls'}</span></footer>

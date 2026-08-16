@@ -8,6 +8,7 @@ import type {
   ResearchTools,
   Synthesizer,
   SynthesisInput,
+  SynthesisStreamPart,
   WorkerModel,
   WorkerResponse,
   WorkerTurn,
@@ -53,6 +54,22 @@ class RecoveringToolWorker implements WorkerModel {
   }
 }
 
+class RetryingWorker implements WorkerModel {
+  readonly name = 'retrying-worker'
+
+  async respond(turn: WorkerTurn): Promise<WorkerResponse> {
+    turn.onActivity?.({
+      kind: 'retry',
+      operation: 'create',
+      status: 503,
+      retry: 1,
+      maxRetries: 3,
+      delayMs: 1_500,
+    })
+    return { kind: 'finding', finding: 'Recovered finding' }
+  }
+}
+
 class Tools implements ResearchTools {
   async execute(call: ResearchToolCall): Promise<ResearchToolResult> {
     if (call.kind === 'fetch') {
@@ -77,10 +94,11 @@ class CountingSynthesizer implements Synthesizer {
   handoffs = 0
   lastInput: SynthesisInput | null = null
 
-  async *stream(input: SynthesisInput): AsyncIterable<string> {
+  async *stream(input: SynthesisInput): AsyncIterable<SynthesisStreamPart> {
     this.handoffs += 1
     this.lastInput = input
-    yield `Synthesized ${input.findings.length} findings`
+    yield { kind: 'reasoning-delta', delta: 'Comparing the completed evidence.' }
+    yield { kind: 'text-delta', delta: `Synthesized ${input.findings.length} findings` }
   }
 }
 
@@ -145,6 +163,8 @@ describe('RunCoordinator', () => {
       'dispatch',
       'review',
     ])
+    expect(snapshot?.orchestratorReasoning).toBe('Comparing the completed evidence.')
+    expect(snapshot?.finalAnswer).toBe('Synthesized 1 findings')
     expect(synthesizer.lastInput?.findings[0]?.agentId).toBe(snapshot?.agents[0]?.id)
     expect(synthesizer.lastInput?.findings[0]?.sources).toEqual([
       { title: 'Source', url: 'https://example.com' },
@@ -174,6 +194,29 @@ describe('RunCoordinator', () => {
     expect(synthesizer.lastInput?.findings[0]?.sources).toEqual([
       { title: 'Source', url: 'https://example.com' },
     ])
+    journal.close()
+  })
+
+  it('streams inference recovery attempts into the agent and orchestrator traces', async () => {
+    const journal = new FleetJournal(':memory:')
+    const input = runInput(1, 1)
+    const runId = createAcceptedRun(journal, input)
+
+    await new RunCoordinator(
+      journal,
+      new RetryingWorker(),
+      new Tools(),
+      new CountingSynthesizer(),
+    ).run(runId, input)
+
+    const snapshot = replayEvents(journal.read(runId))
+    expect(snapshot?.agents[0]?.activity).toBe('Reported findings')
+    expect(snapshot?.orchestratorTrace.some((entry) =>
+      entry.phase === 'recovery' && entry.message.includes('503'),
+    )).toBe(true)
+    expect(journal.read(runId).some((event) =>
+      event.kind === 'agent.activity' && event.activity.includes('retry 1 of 3'),
+    )).toBe(true)
     journal.close()
   })
 })

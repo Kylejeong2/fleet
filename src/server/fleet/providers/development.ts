@@ -4,6 +4,7 @@ import type {
   ResearchTools,
   Synthesizer,
   SynthesisInput,
+  SynthesisStreamPart,
   WorkerModel,
   WorkerResponse,
   WorkerTurn,
@@ -80,16 +81,20 @@ export class DevelopmentResearchTools implements ResearchTools {
 export class DevelopmentSynthesizer implements Synthesizer {
   readonly name = 'deterministic-development-synthesizer'
 
-  async *stream(input: SynthesisInput, signal: AbortSignal): AsyncIterable<string> {
+  async *stream(input: SynthesisInput, signal: AbortSignal): AsyncIterable<SynthesisStreamPart> {
     const question = input.question.replace(/[.?!]+$/, '')
     const chunks = [
       `Fleet completed a development research run for “${question}”. `,
       `The orchestrator reviewed ${input.findings.length} independent findings and synthesized them into this single response. `,
       'Open View fleet when you want to inspect the underlying agents, sources, and tool traces.',
     ]
+    yield {
+      kind: 'reasoning-delta',
+      delta: `I am combining ${input.findings.length} completed findings into one source-aware answer.`,
+    }
     for (const chunk of chunks) {
       await delay(12, signal)
-      yield chunk
+      yield { kind: 'text-delta', delta: chunk }
     }
   }
 }
