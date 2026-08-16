@@ -33,4 +33,12 @@ describe('interface copy contract', () => {
     expect(interfaceSource).toContain('className="fleet-boat-mark"')
     expect(interfaceSource).toContain('aria-hidden="true"')
   })
+
+  it('keeps explicitly sized interface text at a readable minimum', () => {
+    const pixelFontSizes = [...interfaceStyles.matchAll(/font-size:\s*(\d+)px/g)]
+      .map((match) => Number(match[1]))
+
+    expect(pixelFontSizes.length).toBeGreaterThan(0)
+    expect(Math.min(...pixelFontSizes)).toBeGreaterThanOrEqual(12)
+  })
 })
