@@ -106,7 +106,9 @@ function FleetHome() {
   const [question, setQuestion] = useState('')
   const [agentCount, setAgentCount] = useState(50)
   const [snapshot, setSnapshot] = useState<RunSnapshot | null>(null)
+  const [conversationHistory, setConversationHistory] = useState<RunSnapshot[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const [dialogRunId, setDialogRunId] = useState<string | null>(null)
   const [fleetOpen, setFleetOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -117,6 +119,7 @@ function FleetHome() {
   const messagesRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
   const transitioningRunRef = useRef<string | null>(null)
+  const appendingFollowUpRef = useRef(false)
 
   useEffect(() => {
     setHydrated(true)
@@ -167,6 +170,15 @@ function FleetHome() {
 
   useEffect(() => {
     if (!snapshot?.id) return
+    if (appendingFollowUpRef.current) {
+      appendingFollowUpRef.current = false
+      transitioningRunRef.current = null
+      const frame = requestAnimationFrame(() => {
+        const messages = messagesRef.current
+        messages?.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' })
+      })
+      return () => cancelAnimationFrame(frame)
+    }
     transitioningRunRef.current = snapshot.id
     messagesRef.current?.scrollTo({ top: 0 })
     const timeout = window.setTimeout(() => {
@@ -214,16 +226,21 @@ function FleetHome() {
     return () => document.removeEventListener('keydown', closeOnEscape)
   }, [fleetOpen])
 
+  const dialogSnapshot = useMemo(
+    () => conversationHistory.find((turn) => turn.id === dialogRunId) ?? snapshot,
+    [conversationHistory, dialogRunId, snapshot],
+  )
+
   const selectedAgent = useMemo(
     () =>
-      snapshot?.agents.find((agent) => agent.id === selectedAgentId) ??
-      snapshot?.agents[0] ??
+      dialogSnapshot?.agents.find((agent) => agent.id === selectedAgentId) ??
+      dialogSnapshot?.agents[0] ??
       null,
-    [selectedAgentId, snapshot?.agents],
+    [dialogSnapshot, selectedAgentId],
   )
 
   const completeCount =
-    snapshot?.agents.filter((agent) =>
+    dialogSnapshot?.agents.filter((agent) =>
       ['succeeded', 'failed'].includes(agent.status),
     ).length ?? 0
 
@@ -237,14 +254,21 @@ function FleetHome() {
     }
   }
 
-  async function startResearch(event: FormEvent<HTMLFormElement>) {
+  async function startResearch(event: FormEvent<HTMLFormElement>, mode: 'new' | 'follow-up' = 'new') {
     event.preventDefault()
     if (question.trim().length < 3 || submitting) return
+    const currentSnapshot = snapshot
+    const isFollowUp = mode === 'follow-up' && currentSnapshot !== null
+    const priorTurns = isFollowUp ? [...conversationHistory, currentSnapshot] : []
     const launchStartedAt = performance.now()
     setSubmitting(true)
     setError(null)
-    setSnapshot(null)
+    if (!isFollowUp) {
+      setConversationHistory([])
+      setSnapshot(null)
+    }
     setSelectedAgentId(null)
+    setDialogRunId(null)
     setFleetOpen(false)
     autoScrollRef.current = true
     try {
@@ -256,6 +280,7 @@ function FleetHome() {
         },
         body: JSON.stringify({
           question: question.trim(),
+          context: isFollowUp ? conversationContext(priorTurns) : undefined,
           agentCount,
           concurrency: Math.min(agentCount, 6),
           profile: 'live',
@@ -270,10 +295,14 @@ function FleetHome() {
         throw new Error(message)
       }
       const nextSnapshot = RunSnapshotSchema.parse(body)
-      const minimumLaunchDuration = prefersReducedMotion ? 0 : 900
+      const minimumLaunchDuration = isFollowUp || prefersReducedMotion ? 0 : 900
       const remainingLaunchTime = minimumLaunchDuration - (performance.now() - launchStartedAt)
       if (remainingLaunchTime > 0) {
         await new Promise((resolve) => window.setTimeout(resolve, remainingLaunchTime))
+      }
+      if (isFollowUp) {
+        appendingFollowUpRef.current = true
+        setConversationHistory((current) => [...current, currentSnapshot])
       }
       setSnapshot(nextSnapshot)
       setQuestion('')
@@ -289,8 +318,9 @@ function FleetHome() {
     requestAnimationFrame(() => fleetButtonRef.current?.focus())
   }
 
-  function openAgentTrace(agentId: string) {
-    if (!snapshot?.agents.some((agent) => agent.id === agentId)) return
+  function openAgentTrace(agentId: string, turn: RunSnapshot | null = snapshot) {
+    if (!turn?.agents.some((agent) => agent.id === agentId)) return
+    setDialogRunId(turn.id)
     setSelectedAgentId(agentId)
     setFleetOpen(true)
   }
@@ -323,7 +353,10 @@ function FleetHome() {
                 className="view-fleet-button"
                 type="button"
                 ref={fleetButtonRef}
-                onClick={() => setFleetOpen(true)}
+                onClick={() => {
+                  setDialogRunId(snapshot.id)
+                  setFleetOpen(true)
+                }}
               >
                 <FleetMark />
                 View fleet
@@ -353,6 +386,7 @@ function FleetHome() {
               transition={{ duration: .2, ease: [.22, 1, .36, 1] }}
             >
               <ResearchConversation
+                history={conversationHistory}
                 snapshot={snapshot}
                 onOpenAgent={openAgentTrace}
                 messagesRef={messagesRef}
@@ -380,8 +414,8 @@ function FleetHome() {
         </AnimatePresence>
 
         {snapshot ? (
-          <form className="follow-up-composer" onSubmit={startResearch}>
-            <label className="sr-only" htmlFor="follow-up-question">New research question</label>
+          <form className="follow-up-composer" onSubmit={(event) => startResearch(event, 'follow-up')}>
+            <label className="sr-only" htmlFor="follow-up-question">Follow-up question</label>
             <input
               id="follow-up-question"
               value={question}
@@ -392,11 +426,11 @@ function FleetHome() {
                   event.currentTarget.form?.requestSubmit()
                 }
               }}
-              placeholder="Start another research run"
+              placeholder="Ask a follow-up question"
             />
             <button type="submit" disabled={submitting || question.trim().length < 3}>
               <ArrowUp aria-hidden="true" size={15} strokeWidth={2} />
-              <span className="sr-only">Start research</span>
+              <span className="sr-only">Ask follow-up</span>
             </button>
           </form>
         ) : null}
@@ -404,9 +438,9 @@ function FleetHome() {
         {error ? <div className="error-toast" role="alert">{error}</div> : null}
       </section>
 
-      {snapshot && fleetOpen ? (
+      {dialogSnapshot && fleetOpen ? (
         <FleetDialog
-          snapshot={snapshot}
+          snapshot={dialogSnapshot}
           selectedAgent={selectedAgent}
           selectedAgentId={selectedAgentId}
           completeCount={completeCount}
@@ -530,19 +564,20 @@ function FleetSelect(props: {
 }
 
 function ResearchConversation({
+  history,
   snapshot,
   onOpenAgent,
   messagesRef,
   onBreakAutoScroll,
   onReachBottom,
 }: {
+  history: RunSnapshot[]
   snapshot: RunSnapshot
-  onOpenAgent: (agentId: string) => void
+  onOpenAgent: (agentId: string, turn: RunSnapshot) => void
   messagesRef: React.RefObject<HTMLDivElement | null>
   onBreakAutoScroll: () => void
   onReachBottom: () => void
 }) {
-  const answer = snapshot.finalAnswer ?? snapshot.partialAnswer
   return (
     <div
       className="messages"
@@ -563,29 +598,52 @@ function ResearchConversation({
       }}
     >
       <div className="message-column">
-        <div className="prompt-bubble">{snapshot.question}</div>
-        <article className="response">
-          <header className="response-head">
-            <span className="research-icon" aria-hidden="true"><SearchIcon size={13} strokeWidth={1.8} /></span>
-            <span>{responseTitle(snapshot)}</span>
-            {snapshot.status === 'running' || snapshot.status === 'synthesizing' ? <TypingDots /> : null}
-          </header>
+        {history.map((turn) => (
+          <ResearchTurn key={turn.id} snapshot={turn} archived onOpenAgent={onOpenAgent} />
+        ))}
+        <ResearchTurn snapshot={snapshot} onOpenAgent={onOpenAgent} />
+      </div>
+    </div>
+  )
+}
+
+function ResearchTurn({
+  snapshot,
+  archived = false,
+  onOpenAgent,
+}: {
+  snapshot: RunSnapshot
+  archived?: boolean
+  onOpenAgent: (agentId: string, turn: RunSnapshot) => void
+}) {
+  const answer = snapshot.finalAnswer ?? snapshot.partialAnswer
+  const openAgent = (agentId: string) => onOpenAgent(agentId, snapshot)
+  return (
+    <section className={`conversation-turn ${archived ? 'archived' : 'active'}`}>
+      <div className="prompt-bubble">{snapshot.question}</div>
+      <article className="response">
+        <header className="response-head">
+          <span className="research-icon" aria-hidden="true"><SearchIcon size={13} strokeWidth={1.8} /></span>
+          <span>{responseTitle(snapshot)}</span>
+          {!archived && (snapshot.status === 'running' || snapshot.status === 'synthesizing') ? <TypingDots /> : null}
+        </header>
+        {archived ? null : (
           <m.div
             className="ocean-transition-frame ocean-transition-compact"
             layoutId="research-ocean-shell"
             transition={{ layout: { duration: .95, ease: [.22, 1, .36, 1] } }}
           >
             <Suspense fallback={<OceanFallback label="Launching the fleet" />}>
-              <ResearchOcean snapshot={snapshot} onOpenAgent={onOpenAgent} />
+              <ResearchOcean snapshot={snapshot} onOpenAgent={openAgent} />
             </Suspense>
           </m.div>
-          {answer ? null : <ResearchProgress snapshot={snapshot} />}
-          <ResearchActivity snapshot={snapshot} onOpenAgent={onOpenAgent} />
-          {answer ? <AnswerText text={answer} onOpenAgent={onOpenAgent} /> : null}
-          {snapshot.error ? <p className="inline-error" role="alert">{snapshot.error}</p> : null}
-        </article>
-      </div>
-    </div>
+        )}
+        {answer ? null : <ResearchProgress snapshot={snapshot} />}
+        {archived ? null : <ResearchActivity snapshot={snapshot} onOpenAgent={openAgent} />}
+        {answer ? <AnswerText text={answer} onOpenAgent={openAgent} /> : null}
+        {snapshot.error ? <p className="inline-error" role="alert">{snapshot.error}</p> : null}
+      </article>
+    </section>
   )
 }
 
@@ -1131,6 +1189,17 @@ function displayStatus(status: string): string {
 
 function trimQuestion(question: string): string {
   return question.length > 80 ? `${question.slice(0, 77)}…` : question
+}
+
+function conversationContext(turns: RunSnapshot[]): string {
+  return turns
+    .slice(-3)
+    .map((turn, index) => {
+      const answer = (turn.finalAnswer ?? turn.partialAnswer) || 'No answer was produced.'
+      return `Turn ${index + 1}\nQuestion: ${turn.question}\nAnswer: ${answer.slice(0, 5_500)}`
+    })
+    .join('\n\n')
+    .slice(-19_500)
 }
 
 function errorMessage(error: unknown): string {

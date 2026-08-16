@@ -138,6 +138,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .messages::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: #b9bbb6; background-clip: padding-box; }
 .messages::-webkit-scrollbar-thumb:hover { background-color: #8d8f89; }
 .message-column { width: min(var(--chat-column), 100%); margin: 0 auto; }
+.conversation-turn { width: 100%; }
+.conversation-turn + .conversation-turn { margin-top: 46px; padding-top: 38px; border-top: 1px solid var(--line-soft); }
+.conversation-turn.archived .response { margin-bottom: 4px; }
 .prompt-bubble { width: min(540px, 78%); margin-left: auto; padding: 11px 14px; overflow-wrap: anywhere; border-radius: 13px 13px 3px 13px; background: #efefed; line-height: 1.45; }
 .response { width: 100%; margin: 24px 0 0; }
 .response-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 610; }

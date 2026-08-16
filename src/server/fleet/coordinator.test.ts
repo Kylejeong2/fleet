@@ -116,6 +116,23 @@ const createAcceptedRun = (journal: FleetJournal, input: CreateRunInput) => {
 }
 
 describe('RunCoordinator', () => {
+  it('researches follow-ups with prior conversation context while preserving the visible question', async () => {
+    const journal = new FleetJournal(':memory:')
+    const input = {
+      ...runInput(1, 1),
+      question: 'What changed since then?',
+      context: 'Question: What is RevOps?\nAnswer: It aligns go-to-market teams.',
+    }
+    const runId = createAcceptedRun(journal, input)
+    const synthesizer = new CountingSynthesizer()
+    await new RunCoordinator(journal, new TrackingWorker(), new Tools(), synthesizer).run(runId, input)
+    const snapshot = replayEvents(journal.read(runId))
+    expect(snapshot?.question).toBe('What changed since then?')
+    expect(synthesizer.lastInput?.question).toContain('It aligns go-to-market teams.')
+    expect(synthesizer.lastInput?.question).toContain('Current follow-up question: What changed since then?')
+    journal.close()
+  })
+
   it('honors the exact concurrency bound, isolates failure, and synthesizes once', async () => {
     const journal = new FleetJournal(':memory:')
     const worker = new TrackingWorker()

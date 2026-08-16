@@ -4,6 +4,7 @@ import {
   createEventSeq,
   createRunId,
   createToolCallId,
+  CreateRunInputSchema,
   HttpUrlSchema,
   isPublicIpAddress,
   parseRunId,
@@ -29,6 +30,17 @@ describe('Fleet reducer', () => {
     const agentId = createAgentId(runId, 0)
     expect(agentId).toBe(`${runId}:agent-1`)
     expect(createToolCallId(agentId, 0)).toBe(`${agentId}:tool-1`)
+  })
+
+  it('accepts bounded conversation context for follow-up research', () => {
+    const input = CreateRunInputSchema.parse({
+      question: 'What changed since then?',
+      context: 'Question: What is RevOps?\nAnswer: Revenue operations aligns go-to-market teams.',
+      agentCount: 3,
+      concurrency: 3,
+      profile: 'live',
+    })
+    expect(input.context).toContain('Revenue operations')
   })
 
   it('accepts only HTTP and HTTPS research URLs', () => {

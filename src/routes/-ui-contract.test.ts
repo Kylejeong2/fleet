@@ -53,7 +53,7 @@ describe('interface copy contract', () => {
   })
 
   it('keeps live traces in chat and the Fleet modal focused on compact agent cards', () => {
-    expect(interfaceSource).toContain('<ResearchActivity snapshot={snapshot} onOpenAgent={onOpenAgent} />')
+    expect(interfaceSource).toContain('<ResearchActivity snapshot={snapshot} onOpenAgent={openAgent} />')
     expect(interfaceSource).toContain('<h2 id="fleet-dialog-title">Fleet</h2>')
     expect(interfaceSource).not.toContain('Research fleet</h2>')
     expect(interfaceSource).not.toContain('<OrchestratorPanel')
@@ -63,6 +63,10 @@ describe('interface copy contract', () => {
     expect(interfaceSource).toContain("snapshot.agents.filter((agent) => agent.status !== 'planned')")
     expect(interfaceSource).toContain("answerStarted && !wasAnswerStarted.current")
     expect(interfaceSource).toContain('const [open, setOpen] = useState(false)')
+    expect(interfaceSource).toContain("startResearch(event, 'follow-up')")
+    expect(interfaceSource).toContain('conversationContext(priorTurns)')
+    expect(interfaceSource).toContain('history.map((turn) =>')
+    expect(interfaceSource).toContain('Ask a follow-up question')
     expect(interfaceSource).toContain('aria-controls="live-fleet-activity"')
     expect(interfaceSource).toContain("aria-label={open ? 'Hide fleet activity' : 'Show fleet activity'}")
     expect(interfaceSource).toContain("latestTool ? `${latestTool.tool === 'search' ? 'Search' : 'Fetch'}")
@@ -79,10 +83,12 @@ describe('interface copy contract', () => {
   it('makes the research ocean a functional view of live fleet state', () => {
     expect(interfaceSource).toContain('One question. An entire fleet of intelligence.')
     expect(interfaceSource).toContain('Send 100 researchers in every direction')
-    expect(interfaceSource).toContain('<ResearchOcean snapshot={snapshot} onOpenAgent={onOpenAgent} />')
+    expect(interfaceSource).toContain('<ResearchOcean snapshot={snapshot} onOpenAgent={openAgent} />')
     expect(interfaceSource).toContain('layoutId="research-ocean-shell"')
     expect(interfaceSource).toContain('transitioningRunRef.current === snapshot.id')
-    expect(interfaceSource).toContain('minimumLaunchDuration = prefersReducedMotion ? 0 : 900')
+    expect(interfaceSource).toContain(
+      'minimumLaunchDuration = isFollowUp || prefersReducedMotion ? 0 : 900',
+    )
     expect(oceanSource).toContain('Math.min(snapshot.agentCount, MAX_VISIBLE_BOATS)')
     expect(oceanSource).toContain('state.launching ? .9 : .24')
     expect(oceanSource).toContain("agent.activity.toLowerCase().includes('retry')")
