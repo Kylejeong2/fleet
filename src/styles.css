@@ -104,6 +104,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .launch-button { display: flex; height: 38px; align-items: center; gap: 8px; margin-left: auto; padding: 0 15px; border: 0; border-radius: 10px; background: #fff; color: #111a19; box-shadow: 0 2px 12px rgb(0 0 0 / 18%); cursor: pointer; font-size: 14px; font-weight: 650; white-space: nowrap; transition: box-shadow .18s, transform .18s; }
 .launch-button:hover:not(:disabled) { box-shadow: 0 5px 20px rgb(0 0 0 / 24%); transform: translateY(-1px); }
 .launch-button:disabled, .follow-up-composer button:disabled { cursor: not-allowed; opacity: .42; }
+.ocean-home .launch-button:disabled { background: #fff; color: #7a807e; box-shadow: none; opacity: 1; }
 
 .ocean-transition-frame { position: relative; width: 100%; min-height: 0; overflow: hidden; border-radius: 20px; isolation: isolate; }
 .ocean-transition-hero { position: absolute; inset: 0; z-index: 0; height: 100%; border-radius: 0; }
