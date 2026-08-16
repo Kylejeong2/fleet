@@ -1,4 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
+import * as SelectPrimitive from '@radix-ui/react-select'
+import { ArrowUp, Check, ChevronDown, ExternalLink, Search as SearchIcon } from 'lucide-react'
 import { domAnimation, LazyMotion, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import {
@@ -64,6 +66,12 @@ const agentNames = [
 ]
 
 const agentCountOptions = [1, 3, 6, 12, 25, 50, 100] as const
+
+const profileOptions: Array<{ value: RunProfile; label: string }> = [
+  { value: 'development', label: 'Development' },
+  { value: 'live-workers', label: 'Live workers' },
+  { value: 'live', label: 'Live fleet' },
+]
 
 const botPalettes = [
   { shell: '#c9dcf5', shellLight: '#f4f8ff', accent: '#5579b3', accentSoft: '#d9e6f7', eye: '#25446f' },
@@ -186,6 +194,7 @@ function FleetHome() {
     setError(null)
     setSnapshot(null)
     setSelectedAgentId(null)
+    setFleetOpen(false)
     try {
       const response = await fetch('/api/v1/runs', {
         method: 'POST',
@@ -209,7 +218,6 @@ function FleetHome() {
         throw new Error(message)
       }
       setSnapshot(RunSnapshotSchema.parse(body))
-      setFleetOpen(true)
     } catch (startError) {
       setError(errorMessage(startError))
     } finally {
@@ -270,10 +278,16 @@ function FleetHome() {
               id="follow-up-question"
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  event.currentTarget.form?.requestSubmit()
+                }
+              }}
               placeholder="Start another research run"
             />
             <button type="submit" disabled={submitting || question.trim().length < 3}>
-              <span aria-hidden="true">↑</span>
+              <ArrowUp aria-hidden="true" size={15} strokeWidth={2} />
               <span className="sr-only">Start research</span>
             </button>
           </form>
@@ -322,48 +336,88 @@ function WelcomeComposer(props: {
           id="research-question"
           value={props.question}
           onChange={(event) => props.setQuestion(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              event.currentTarget.form?.requestSubmit()
+            }
+          }}
           placeholder="Ask a question worth investigating"
           rows={4}
           autoFocus
         />
         <div className="composer-controls">
-          <label className="select-control agent-count-control">
-            <span className="sr-only">Number of agents</span>
-            <select
-              aria-label="Number of agents"
-              value={props.agentCount}
-              onChange={(event) => props.setAgentCount(Number(event.target.value))}
-            >
-              {agentCountOptions.map((count) => (
-                <option key={count} value={count}>
-                  {count} {count === 1 ? 'agent' : 'agents'}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="select-control">
-            <span className="sr-only">Execution profile</span>
-            <select
-              aria-label="Execution profile"
-              value={props.profile}
-              onChange={(event) => props.setProfile(event.target.value as RunProfile)}
-            >
-              <option value="development">Development</option>
-              <option value="live-workers">Live workers</option>
-              <option value="live">Live fleet</option>
-            </select>
-          </label>
+          <FleetSelect
+            label="Number of agents"
+            value={String(props.agentCount)}
+            options={agentCountOptions.map((count) => ({
+              value: String(count),
+              label: `${count} ${count === 1 ? 'agent' : 'agents'}`,
+            }))}
+            className="agent-count-control"
+            onValueChange={(value) => props.setAgentCount(Number(value))}
+          />
+          <FleetSelect
+            label="Execution profile"
+            value={props.profile}
+            options={profileOptions}
+            onValueChange={(value) => props.setProfile(value as RunProfile)}
+          />
           <button
             className="launch-button"
             type="submit"
             disabled={props.submitting || props.question.trim().length < 3}
           >
             <span>{props.submitting ? 'Starting' : 'Launch fleet'}</span>
-            <span aria-hidden="true">↑</span>
+            <ArrowUp aria-hidden="true" size={14} strokeWidth={2} />
           </button>
         </div>
       </form>
     </section>
+  )
+}
+
+function FleetSelect(props: {
+  label: string
+  value: string
+  options: Array<{ value: string; label: string }>
+  className?: string
+  onValueChange: (value: string) => void
+}) {
+  return (
+    <div className={`select-control ${props.className ?? ''}`}>
+      <SelectPrimitive.Root value={props.value} onValueChange={props.onValueChange}>
+        <SelectPrimitive.Trigger className="select-trigger" aria-label={props.label}>
+          <SelectPrimitive.Value />
+          <SelectPrimitive.Icon className="select-chevron" aria-hidden="true">
+            <ChevronDown size={12} strokeWidth={1.8} />
+          </SelectPrimitive.Icon>
+        </SelectPrimitive.Trigger>
+        <SelectPrimitive.Portal>
+          <SelectPrimitive.Content
+            className="select-content"
+            position="popper"
+            sideOffset={6}
+            collisionPadding={12}
+          >
+            <SelectPrimitive.Viewport className="select-viewport">
+              {props.options.map((option) => (
+                <SelectPrimitive.Item
+                  className="select-item"
+                  key={option.value}
+                  value={option.value}
+                >
+                  <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                  <SelectPrimitive.ItemIndicator className="select-indicator">
+                    <Check size={12} strokeWidth={1.8} />
+                  </SelectPrimitive.ItemIndicator>
+                </SelectPrimitive.Item>
+              ))}
+            </SelectPrimitive.Viewport>
+          </SelectPrimitive.Content>
+        </SelectPrimitive.Portal>
+      </SelectPrimitive.Root>
+    </div>
   )
 }
 
@@ -374,7 +428,7 @@ function ResearchConversation({ snapshot }: { snapshot: RunSnapshot }) {
       <div className="prompt-bubble">{snapshot.question}</div>
       <article className="response">
         <header className="response-head">
-          <span className="research-icon" aria-hidden="true">⌕</span>
+          <span className="research-icon" aria-hidden="true"><SearchIcon size={13} strokeWidth={1.8} /></span>
           <span>{responseTitle(snapshot)}</span>
           {snapshot.status === 'running' || snapshot.status === 'synthesizing' ? <TypingDots /> : null}
         </header>
@@ -504,7 +558,11 @@ function TracePanel({ agent, index }: { agent: AgentSnapshot | null; index: numb
                     aria-expanded={isExpanded}
                     onClick={() => setExpanded((current) => ({ ...current, [trace.id]: !isExpanded }))}
                   >
-                    <span className="tool-icon" aria-hidden="true">{trace.tool === 'search' ? '⌕' : '↗'}</span>
+                    <span className="tool-icon" aria-hidden="true">
+                      {trace.tool === 'search'
+                        ? <SearchIcon size={13} strokeWidth={1.8} />
+                        : <ExternalLink size={13} strokeWidth={1.8} />}
+                    </span>
                     <span><strong>{trace.tool === 'search' ? 'Search' : 'Fetch'}</strong><small>{trace.input}</small></span>
                     <span className="tool-status">{displayStatus(trace.status)} <i aria-hidden="true">›</i></span>
                   </button>
@@ -651,7 +709,7 @@ function AnswerText({ text }: { text: string }) {
 
 function ResearchProgress({ snapshot }: { snapshot: RunSnapshot }) {
   const started = snapshot.agents.filter((agent) => agent.status !== 'planned').length
-  return <p className="progress-copy">{started ? `${started} agents are searching, reading, and checking independent angles.` : 'The fleet is dividing the question into independent research angles.'}</p>
+  return <p className="progress-copy">{started ? `The orchestrator dispatched ${started} of ${snapshot.agentCount} researchers and is reviewing their evidence.` : 'The orchestrator is framing the question and preparing independent research angles.'}</p>
 }
 
 function toolDetail(trace: ToolTrace): string {
@@ -682,8 +740,8 @@ function agentProgress(agent: AgentSnapshot): number {
 function responseTitle(snapshot: RunSnapshot): string {
   if (snapshot.status === 'completed') return 'Research complete'
   if (snapshot.status === 'failed') return 'Research stopped'
-  if (snapshot.status === 'synthesizing') return 'Synthesizing the evidence'
-  return `Researching with ${snapshot.agentCount} agents`
+  if (snapshot.status === 'synthesizing') return 'Orchestrator is synthesizing the evidence'
+  return 'Orchestrator is thinking'
 }
 
 function displayStatus(status: string): string {

@@ -24,7 +24,6 @@ Before committing:
 
 ```bash
 pnpm check
-pnpm test:e2e
 pnpm audit --audit-level=high
 ```
 

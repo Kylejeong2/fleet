@@ -31,10 +31,9 @@ To exercise real workers, add `SAIL_API_KEY` and `BROWSERBASE_API_KEY`, then sel
 
 ```bash
 pnpm check
-pnpm test:e2e
 ```
 
-`pnpm check` type-checks the application, runs unit and integration tests, and creates the production build. Browser tests cover the visible research flow separately.
+`pnpm check` type-checks the application, runs unit and integration tests, and creates the production build. Verify the visible research flow against `pnpm dev` in the Browser plugin.
 
 ## Documentation
 

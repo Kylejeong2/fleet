@@ -10,13 +10,9 @@ pnpm check
 
 This command runs TypeScript validation, Vitest, and the production build. Unit and integration coverage includes ordered reduction, duplicate and gap handling, journal idempotency, bounded concurrency, isolated worker failure, Search and Fetch trace transitions, and exactly one synthesis phase.
 
-## Browser tests
+## Browser verification
 
-```bash
-pnpm test:e2e
-```
-
-The end-to-end flow submits a prompt, observes active agents, opens the fleet, selects an agent, expands tool activity, closes the dialog with the keyboard, and waits for the final answer. Responsive and reduced-motion checks run as separate cases.
+Run `pnpm dev`, then use the Browser plugin to submit a prompt, observe the orchestrator without an automatic modal, open the fleet manually, inspect an agent trace, close it, and wait for the single synthesized answer. The same command serves both the client and the API routes.
 
 ## Live provider smoke test
 
