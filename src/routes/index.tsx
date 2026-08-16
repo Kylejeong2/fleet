@@ -421,18 +421,20 @@ function ResearchConversation({
   const answer = snapshot.finalAnswer ?? snapshot.partialAnswer
   return (
     <div className="messages" aria-live="polite">
-      <div className="prompt-bubble">{snapshot.question}</div>
-      <article className="response">
-        <header className="response-head">
-          <span className="research-icon" aria-hidden="true"><SearchIcon size={13} strokeWidth={1.8} /></span>
-          <span>{responseTitle(snapshot)}</span>
-          {snapshot.status === 'running' || snapshot.status === 'synthesizing' ? <TypingDots /> : null}
-        </header>
-        {answer
-          ? <AnswerText text={answer} onOpenAgent={onOpenAgent} />
-          : <ResearchProgress snapshot={snapshot} />}
-        {snapshot.error ? <p className="inline-error" role="alert">{snapshot.error}</p> : null}
-      </article>
+      <div className="message-column">
+        <div className="prompt-bubble">{snapshot.question}</div>
+        <article className="response">
+          <header className="response-head">
+            <span className="research-icon" aria-hidden="true"><SearchIcon size={13} strokeWidth={1.8} /></span>
+            <span>{responseTitle(snapshot)}</span>
+            {snapshot.status === 'running' || snapshot.status === 'synthesizing' ? <TypingDots /> : null}
+          </header>
+          {answer
+            ? <AnswerText text={answer} onOpenAgent={onOpenAgent} />
+            : <ResearchProgress snapshot={snapshot} />}
+          {snapshot.error ? <p className="inline-error" role="alert">{snapshot.error}</p> : null}
+        </article>
+      </div>
     </div>
   )
 }

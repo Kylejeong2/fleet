@@ -12,6 +12,8 @@
   --wash: #f6f6f4;
   --green: #30a46c;
   --red: #cf4b42;
+  --chat-column: 780px;
+  --chat-gutter: clamp(16px, 4vw, 48px);
 }
 
 * { box-sizing: border-box; }
@@ -77,9 +79,10 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .launch-button { display: flex; height: 34px; align-items: center; gap: 8px; margin-left: auto; padding: 0 11px; border: 0; border-radius: 9px; background: #1c1d1b; color: #fff; cursor: pointer; font-size: 12px; }
 .launch-button:disabled, .follow-up-composer button:disabled { cursor: not-allowed; opacity: .42; }
 
-.messages { overflow: auto; padding: 26px max(28px, 7vw) 34px; }
-.prompt-bubble { width: min(720px, 88%); margin-left: auto; padding: 11px 14px; border-radius: 13px 13px 3px 13px; background: #efefed; line-height: 1.45; }
-.response { width: min(780px, 100%); margin: 24px auto 0; }
+.messages { overflow: auto; padding: 26px var(--chat-gutter) 34px; }
+.message-column { width: min(var(--chat-column), 100%); margin: 0 auto; }
+.prompt-bubble { width: min(540px, 78%); margin-left: auto; padding: 11px 14px; overflow-wrap: anywhere; border-radius: 13px 13px 3px 13px; background: #efefed; line-height: 1.45; }
+.response { width: 100%; margin: 24px 0 0; }
 .response-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 610; }
 .research-icon { display: inline-flex; width: 25px; height: 25px; flex: 0 0 auto; align-items: center; justify-content: center; border: 1px solid #d5d5d2; border-radius: 7px; background: #fafaf9; color: #4e504b; }
 .answer-text { color: #272825; font-size: 14px; line-height: 1.68; }
@@ -106,14 +109,13 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .answer-text th { background: #f5f5f2; font-weight: 620; }
 .agent-citation { display: inline-flex; min-width: 24px; height: 18px; align-items: center; justify-content: center; margin: 0 2px; padding: 0 5px; border: 1px solid #cfd5dc; border-radius: 5px; background: #f4f7fa; color: #45617f; cursor: pointer; font-size: 10px; font-weight: 650; line-height: 1; vertical-align: super; }
 .agent-citation:hover { border-color: #9faeba; background: #eaf0f5; }
-.progress-copy { margin: 0 0 13px; line-height: 1.62; white-space: pre-wrap; }
-.progress-copy { color: #5f605c; }
+.progress-copy { margin: 0 0 13px; color: #5f605c; line-height: 1.62; white-space: pre-wrap; }
 .typing { display: inline-flex; gap: 3px; margin-left: 2px; }
 .typing i { width: 3px; height: 3px; border-radius: 50%; background: #7d7d79; animation: blink 1.2s infinite; }
 .typing i:nth-child(2) { animation-delay: .18s; }
 .typing i:nth-child(3) { animation-delay: .36s; }
 @keyframes blink { 0%, 70%, 100% { opacity: .25; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-2px); } }
-.follow-up-composer { display: flex; align-items: center; gap: 8px; margin: 0 16px 14px; padding: 6px 7px 6px 12px; border: 1px solid #d9d9d6; border-radius: 13px; background: #fff; box-shadow: 0 2px 7px rgb(0 0 0 / 6%); }
+.follow-up-composer { display: flex; width: min(var(--chat-column), calc(100% - var(--chat-gutter) - var(--chat-gutter))); align-items: center; gap: 8px; margin: 0 auto 14px; padding: 6px 7px 6px 12px; border: 1px solid #d9d9d6; border-radius: 13px; background: #fff; box-shadow: 0 2px 7px rgb(0 0 0 / 6%); }
 .follow-up-composer input { min-width: 0; flex: 1; border: 0; outline: 0; }
 .follow-up-composer button { display: flex; width: 30px; height: 30px; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: #191919; color: #fff; cursor: pointer; }
 .inline-error { padding: 10px 12px; border-left: 2px solid var(--red); background: #fff4f2; color: #7a2f29; line-height: 1.45; }
@@ -212,11 +214,12 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 }
 
 @media (max-width: 720px) {
+  :root { --chat-gutter: 14px; }
   body { overflow: auto; background: #fff; }
   .app-shell { position: relative; inset: auto; width: 100%; min-height: 100dvh; grid-template-columns: 1fr; border: 0; border-radius: 0; box-shadow: none; }
   .conversation { min-height: 100dvh; }
   .conversation-header { padding: 0 12px; }
-  .messages { padding: 20px 16px 28px; }
+  .messages { padding: 20px var(--chat-gutter) 28px; }
   .prompt-bubble { width: 94%; }
   .welcome-stage { width: calc(100% - 28px); }
   .intro h1 { font-size: 31px; }
