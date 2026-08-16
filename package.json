@@ -9,7 +9,7 @@
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run src --passWithNoTests",
     "test:e2e": "playwright test --pass-with-no-tests",
     "check": "npm run typecheck && npm run test && npm run build"
   },

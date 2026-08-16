@@ -25,7 +25,18 @@ export const Route = createRootRoute({
   }),
   shellComponent: RootDocument,
   component: Outlet,
+  notFoundComponent: FleetNotFound,
 })
+
+function FleetNotFound() {
+  return (
+    <main className="not-found">
+      <span className="fleet-glyph" aria-hidden="true">F</span>
+      <h1>This route is outside the fleet.</h1>
+      <a href="/">Return to research</a>
+    </main>
+  )
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
