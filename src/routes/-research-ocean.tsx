@@ -260,7 +260,7 @@ function useThreeOcean(
     const routes: THREE.Line[] = []
     for (let index = 0; index < boatCount; index += 1) {
       const preview = boatCount === 1 && liveState.current.agents[0]?.status === 'preview'
-      const boat = createBoat(preview ? 1.05 : .36)
+      const boat = createBoat(preview ? .82 : .36)
       boat.userData.agentIndex = index
       boat.userData.progress = preview ? .24 : 0
       boat.userData.velocity = 0
@@ -270,11 +270,11 @@ function useThreeOcean(
       const territory = territories[index % territories.length]!
       const spread = ((Math.floor(index / territories.length) % 7) - 3) * .38
       const destination = preview
-        ? new THREE.Vector3(5, -1.02, 5.4)
+        ? new THREE.Vector3(5, -1.25, 5.4)
         : territory.world.clone().add(new THREE.Vector3(spread, 0, (index % 4) * .32))
-      const start = preview ? new THREE.Vector3(-5, -1.05, 5.4) : new THREE.Vector3(0, -.52, 5.6)
+      const start = preview ? new THREE.Vector3(-5, -1.28, 5.4) : new THREE.Vector3(0, -.52, 5.6)
       const control = preview
-        ? new THREE.Vector3(0, -.82, 5)
+        ? new THREE.Vector3(0, -1.05, 5)
         : new THREE.Vector3(destination.x * .42 + ((index % 5) - 2) * .32, .55 + (index % 3) * .12, destination.z * .28 + 1.2)
       const curve = new THREE.QuadraticBezierCurve3(start, control, destination)
       boat.userData.curve = curve
