@@ -13,7 +13,7 @@ import {
   Sun,
   XCircle,
 } from 'lucide-react'
-import { domAnimation, LazyMotion, useReducedMotion } from 'motion/react'
+import { AnimatePresence, domMax, LazyMotion, useReducedMotion } from 'motion/react'
 import * as m from 'motion/react-m'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -115,6 +115,7 @@ function FleetHome() {
   const dialogRef = useRef<HTMLElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
+  const transitioningRunRef = useRef<string | null>(null)
 
   useEffect(() => {
     setHydrated(true)
@@ -164,7 +165,17 @@ function FleetHome() {
   }, [fleetOpen])
 
   useEffect(() => {
-    if (!snapshot || !autoScrollRef.current) return
+    if (!snapshot?.id) return
+    transitioningRunRef.current = snapshot.id
+    messagesRef.current?.scrollTo({ top: 0 })
+    const timeout = window.setTimeout(() => {
+      if (transitioningRunRef.current === snapshot.id) transitioningRunRef.current = null
+    }, 1100)
+    return () => window.clearTimeout(timeout)
+  }, [snapshot?.id])
+
+  useEffect(() => {
+    if (!snapshot || !autoScrollRef.current || transitioningRunRef.current === snapshot.id) return
     const messages = messagesRef.current
     if (!messages) return
     const frame = requestAnimationFrame(() => {
@@ -286,7 +297,7 @@ function FleetHome() {
   }
 
   return (
-    <LazyMotion features={domAnimation} strict>
+    <LazyMotion features={domMax} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
       <section className={`conversation ${snapshot ? 'has-run' : 'ocean-home'}`} aria-label="Fleet research chat">
         <header className="conversation-header">
@@ -324,24 +335,41 @@ function FleetHome() {
           </div>
         </header>
 
-        {snapshot ? (
-          <ResearchConversation
-            snapshot={snapshot}
-            onOpenAgent={openAgentTrace}
-            messagesRef={messagesRef}
-            onBreakAutoScroll={() => { autoScrollRef.current = false }}
-            onReachBottom={() => { autoScrollRef.current = true }}
-          />
-        ) : (
-          <WelcomeComposer
-            question={question}
-            setQuestion={setQuestion}
-            agentCount={agentCount}
-            setAgentCount={setAgentCount}
-            submitting={submitting}
-            onSubmit={startResearch}
-          />
-        )}
+        <AnimatePresence initial={false} mode="sync">
+          {snapshot ? (
+            <m.div
+              className="conversation-stage"
+              key="research-conversation"
+              initial={{ opacity: 0, y: 28 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: .72, delay: .12, ease: [.22, 1, .36, 1] }}
+            >
+              <ResearchConversation
+                snapshot={snapshot}
+                onOpenAgent={openAgentTrace}
+                messagesRef={messagesRef}
+                onBreakAutoScroll={() => { autoScrollRef.current = false }}
+                onReachBottom={() => { autoScrollRef.current = true }}
+              />
+            </m.div>
+          ) : (
+            <m.div
+              className="welcome-transition"
+              key="research-welcome"
+              exit={{ opacity: 0 }}
+              transition={{ duration: .58, ease: [.4, 0, .2, 1] }}
+            >
+              <WelcomeComposer
+                question={question}
+                setQuestion={setQuestion}
+                agentCount={agentCount}
+                setAgentCount={setAgentCount}
+                submitting={submitting}
+                onSubmit={startResearch}
+              />
+            </m.div>
+          )}
+        </AnimatePresence>
 
         {snapshot ? (
           <form className="follow-up-composer" onSubmit={startResearch}>
@@ -436,9 +464,15 @@ function WelcomeComposer(props: {
           </button>
         </div>
       </form>
-      <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
-        <ResearchOcean />
-      </Suspense>
+      <m.div
+        className="ocean-transition-frame ocean-transition-hero"
+        layoutId="research-ocean-shell"
+        transition={{ layout: { duration: .95, ease: [.22, 1, .36, 1] } }}
+      >
+        <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
+          <ResearchOcean />
+        </Suspense>
+      </m.div>
     </section>
   )
 }
@@ -528,9 +562,15 @@ function ResearchConversation({
             <span>{responseTitle(snapshot)}</span>
             {snapshot.status === 'running' || snapshot.status === 'synthesizing' ? <TypingDots /> : null}
           </header>
-          <Suspense fallback={<OceanFallback label="Launching the fleet" />}>
-            <ResearchOcean snapshot={snapshot} onOpenAgent={onOpenAgent} />
-          </Suspense>
+          <m.div
+            className="ocean-transition-frame ocean-transition-compact"
+            layoutId="research-ocean-shell"
+            transition={{ layout: { duration: .95, ease: [.22, 1, .36, 1] } }}
+          >
+            <Suspense fallback={<OceanFallback label="Launching the fleet" />}>
+              <ResearchOcean snapshot={snapshot} onOpenAgent={onOpenAgent} />
+            </Suspense>
+          </m.div>
           {answer ? null : <ResearchProgress snapshot={snapshot} />}
           <ResearchActivity snapshot={snapshot} onOpenAgent={onOpenAgent} />
           {answer ? <AnswerText text={answer} onOpenAgent={onOpenAgent} /> : null}

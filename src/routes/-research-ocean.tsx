@@ -147,15 +147,15 @@ function useThreeOcean(
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75))
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.25
+    renderer.toneMappingExposure = 1.35
 
     const scene = new THREE.Scene()
-    scene.fog = new THREE.FogExp2(0x020b12, 0.048)
+    scene.fog = new THREE.FogExp2(0x03111a, 0.038)
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80)
     camera.position.set(0, 7.6, 14.5)
     camera.lookAt(0, -0.9, -3.4)
 
-    const ambient = new THREE.HemisphereLight(0x8defff, 0x021018, 1.2)
+    const ambient = new THREE.HemisphereLight(0x9fefff, 0x021018, 1.35)
     scene.add(ambient)
     const keyLight = new THREE.DirectionalLight(0xbafaff, 3.2)
     keyLight.position.set(-6, 10, 7)
@@ -164,21 +164,36 @@ function useThreeOcean(
     coreLight.position.set(0, 1.6, 1)
     scene.add(coreLight)
 
-    const waterGeometry = new THREE.PlaneGeometry(38, 30, 96, 76)
+    const waterGeometry = new THREE.PlaneGeometry(42, 34, 128, 96)
     const waterMaterial = new THREE.ShaderMaterial({
       uniforms: { uTime: { value: 0 }, uEnergy: { value: 0.45 } },
       vertexShader: `
         uniform float uTime;
         varying float vWave;
+        varying float vFoam;
         varying vec2 vUv;
+        varying vec3 vWorldPosition;
+        varying vec3 vWorldNormal;
+
+        float oceanHeight(vec2 point) {
+          float swell = sin(dot(point, normalize(vec2(1.0, .26))) * .34 + uTime * .46) * .31;
+          float crossing = sin(dot(point, normalize(vec2(-.34, 1.0))) * .58 - uTime * .37) * .18;
+          float chop = sin(dot(point, normalize(vec2(.76, .65))) * 1.18 + uTime * .72) * .075;
+          float ripple = sin(dot(point, normalize(vec2(-.82, .57))) * 2.35 - uTime * 1.08) * .026;
+          return swell + crossing + chop + ripple;
+        }
+
         void main() {
           vUv = uv;
           vec3 p = position;
-          float broad = sin(p.x * .42 + uTime * .55) * .22;
-          float cross = sin(p.y * .62 - uTime * .38 + p.x * .14) * .16;
-          float detail = sin((p.x + p.y) * 1.35 + uTime * .8) * .045;
-          p.z += broad + cross + detail;
+          p.z += oceanHeight(p.xy);
           vWave = p.z;
+          vFoam = smoothstep(.34, .52, p.z);
+          float epsilon = .08;
+          float slopeX = (oceanHeight(p.xy + vec2(epsilon, 0.0)) - oceanHeight(p.xy - vec2(epsilon, 0.0))) / (2.0 * epsilon);
+          float slopeY = (oceanHeight(p.xy + vec2(0.0, epsilon)) - oceanHeight(p.xy - vec2(0.0, epsilon))) / (2.0 * epsilon);
+          vWorldNormal = normalize(mat3(modelMatrix) * normalize(vec3(-slopeX, -slopeY, 1.0)));
+          vWorldPosition = (modelMatrix * vec4(p, 1.0)).xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
         }
       `,
@@ -186,16 +201,29 @@ function useThreeOcean(
         uniform float uTime;
         uniform float uEnergy;
         varying float vWave;
+        varying float vFoam;
         varying vec2 vUv;
+        varying vec3 vWorldPosition;
+        varying vec3 vWorldNormal;
         void main() {
-          vec3 deep = vec3(.008, .055, .09);
-          vec3 mid = vec3(.018, .20, .23);
-          vec3 crest = vec3(.16, .91, .83);
-          float horizon = smoothstep(.02, .92, vUv.y);
-          float shimmer = pow(max(0.0, vWave + .22), 2.0) * (1.5 + uEnergy);
-          float scan = smoothstep(.965, 1.0, sin((vUv.x - vUv.y) * 80.0 + uTime * 1.7));
-          vec3 color = mix(deep, mid, horizon * .7) + crest * shimmer + crest * scan * .055;
-          gl_FragColor = vec4(color, .96);
+          vec3 normal = normalize(vWorldNormal);
+          vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+          vec3 sunDirection = normalize(vec3(-.42, .78, .34));
+          float fresnel = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.2);
+          float diffuse = max(dot(normal, sunDirection), 0.0);
+          float specular = pow(max(dot(reflect(-sunDirection, normal), viewDirection), 0.0), 92.0);
+          float horizon = smoothstep(.05, .96, vUv.y);
+          float fineFoam = smoothstep(.76, 1.0, sin(vWorldPosition.x * 2.6 - vWorldPosition.z * 1.8 + uTime * .8));
+          float foam = vFoam * (.25 + fineFoam * .75);
+          vec3 abyss = vec3(.004, .035, .065);
+          vec3 waterBlue = vec3(.008, .16, .21);
+          vec3 reflectedSky = vec3(.09, .43, .48);
+          vec3 color = mix(abyss, waterBlue, diffuse * .54 + horizon * .2);
+          color = mix(color, reflectedSky, fresnel * (.42 + uEnergy * .08));
+          color += vec3(.42, .96, .91) * specular * (1.15 + uEnergy * .45);
+          color += vec3(.34, .86, .82) * foam * (.16 + uEnergy * .08);
+          color += vec3(.02, .17, .18) * max(vWave, 0.0) * .32;
+          gl_FragColor = vec4(color, .985);
         }
       `,
       transparent: true,
@@ -205,13 +233,6 @@ function useThreeOcean(
     water.rotation.x = -Math.PI / 2
     water.position.set(0, -1.15, -3.4)
     scene.add(water)
-
-    const grid = new THREE.GridHelper(38, 54, 0x39d8cc, 0x185566)
-    grid.position.set(0, -0.92, -3.4)
-    const gridMaterial = grid.material as THREE.Material
-    gridMaterial.transparent = true
-    gridMaterial.opacity = 0.13
-    scene.add(grid)
 
     const starGeometry = new THREE.BufferGeometry()
     const starPositions = new Float32Array(720 * 3)

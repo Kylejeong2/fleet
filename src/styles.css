@@ -13,7 +13,7 @@
   --wash: #f6f6f4;
   --green: #30a46c;
   --red: #cf4b42;
-  --chat-column: 780px;
+  --chat-column: 900px;
   --chat-gutter: clamp(16px, 4vw, 48px);
 }
 
@@ -37,6 +37,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 }
 
 .conversation { position: relative; display: grid; width: 100%; height: 100%; min-width: 0; min-height: 0; grid-template-rows: 48px minmax(0, 1fr) auto; background: #fff; }
+.welcome-transition, .conversation-stage { min-width: 0; min-height: 0; overflow: hidden; }
+.welcome-transition { height: 100%; }
+.conversation-stage { display: grid; }
 .conversation-header { display: flex; align-items: center; gap: 9px; padding: 0 16px; border-bottom: 1px solid var(--line); }
 .fleet-boat-mark { width: 30px; height: 22px; flex: 0 0 30px; overflow: visible; }
 .fleet-boat-mark .boat { stroke: #614b35; stroke-width: .8; stroke-linejoin: round; }
@@ -102,12 +105,15 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .launch-button:hover:not(:disabled) { box-shadow: 0 0 38px rgb(76 230 216 / 38%); transform: translateY(-1px); }
 .launch-button:disabled, .follow-up-composer button:disabled { cursor: not-allowed; opacity: .42; }
 
-.research-ocean { position: relative; width: 100%; height: 290px; overflow: hidden; border: 1px solid #153e48; border-radius: 20px; background: #020b12; color: #c9fff9; box-shadow: inset 0 1px rgb(170 255 247 / 6%), 0 18px 50px rgb(0 0 0 / 18%); isolation: isolate; }
-.welcome-stage > .research-ocean { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+.ocean-transition-frame { position: relative; width: 100%; min-height: 0; overflow: hidden; border-radius: 22px; isolation: isolate; }
+.ocean-transition-hero { position: absolute; inset: 0; z-index: 0; height: 100%; border-radius: 0; }
+.ocean-transition-compact { margin: 4px 0 24px; box-shadow: 0 26px 80px rgb(2 19 28 / 18%); }
+.research-ocean { position: relative; width: 100%; height: 390px; overflow: hidden; border: 1px solid #1b505a; border-radius: inherit; background: radial-gradient(circle at 72% 14%, rgb(126 235 229 / 19%), transparent 8%), radial-gradient(ellipse at 50% 38%, #0a3140 0%, #041722 42%, #01070d 100%); color: #c9fff9; box-shadow: inset 0 1px rgb(170 255 247 / 10%), inset 0 -50px 90px rgb(0 5 10 / 34%), 0 18px 50px rgb(0 0 0 / 18%); isolation: isolate; transition: height .9s cubic-bezier(.22, 1, .36, 1), border-color .5s ease, box-shadow .5s ease; }
+.ocean-transition-hero .research-ocean { height: 100%; border: 0; border-radius: 0; box-shadow: none; }
 .ocean-loading { display: grid; place-items: center; background: radial-gradient(circle at 50% 58%, #0b373b, #020b12 58%); color: #78a5a1; font-size: 12px; }
 .ocean-canvas { position: absolute; inset: 0; width: 100%; height: 100%; outline: none; }
-.ocean-vignette { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(ellipse at 50% 51%, transparent 0 22%, rgb(1 8 13 / 12%) 52%, rgb(1 7 11 / 88%) 100%), linear-gradient(180deg, rgb(1 7 12 / 60%) 0%, transparent 28%, transparent 70%, rgb(1 8 13 / 78%) 100%); }
-.ocean-horizon { position: absolute; top: 31%; right: 0; left: 0; z-index: 1; height: 1px; background: linear-gradient(90deg, transparent 5%, rgb(85 238 226 / 20%), rgb(135 255 245 / 55%) 50%, rgb(85 238 226 / 20%), transparent 95%); box-shadow: 0 0 42px 9px rgb(53 224 211 / 8%); pointer-events: none; }
+.ocean-vignette { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(circle at 72% 13%, rgb(184 255 248 / 14%) 0 1px, rgb(85 224 216 / 8%) 2%, transparent 10%), radial-gradient(ellipse at 50% 52%, transparent 0 26%, rgb(1 8 13 / 10%) 56%, rgb(1 7 11 / 86%) 100%), linear-gradient(180deg, rgb(1 7 12 / 20%) 0%, transparent 34%, transparent 67%, rgb(1 8 13 / 66%) 100%); }
+.ocean-horizon { position: absolute; top: 34%; right: 0; left: 0; z-index: 1; height: 1px; background: linear-gradient(90deg, transparent 4%, rgb(78 191 192 / 12%), rgb(176 255 248 / 36%) 68%, rgb(78 191 192 / 12%), transparent 96%); box-shadow: 0 0 55px 12px rgb(74 219 210 / 8%); pointer-events: none; }
 .ocean-agent-access { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .ocean-agent-target { position: absolute; top: var(--agent-y); left: var(--agent-x); display: grid; width: 27px; height: 27px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 50%; background: transparent; color: transparent; pointer-events: auto; cursor: pointer; transform: translate(-50%, -50%); }
 .ocean-agent-target span { position: absolute; top: 29px; left: 50%; padding: 3px 6px; border: 1px solid rgb(117 255 243 / 24%); border-radius: 5px; background: rgb(2 16 22 / 90%); color: #aefbf4; opacity: 0; font-size: 12px; pointer-events: none; transform: translateX(-50%) translateY(-3px); transition: opacity .14s, transform .14s; }
@@ -122,9 +128,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .ocean-source-stream { display: flex; max-width: 100%; justify-content: center; gap: 7px; margin-top: 7px; pointer-events: auto; }
 .ocean-source-stream a { display: flex; height: 27px; max-width: 180px; align-items: center; padding: 0 9px; overflow: hidden; border: 1px solid rgb(117 255 243 / 19%); border-radius: 7px; background: rgb(2 19 25 / 84%); color: #a9d8d4; box-shadow: 0 7px 24px rgb(0 0 0 / 22%); font-size: 12px; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; backdrop-filter: blur(8px); animation: source-surface .42s calc(var(--source-index) * .08s) both ease-out; }
 .ocean-source-stream a:hover, .ocean-source-stream a:focus-visible { border-color: rgb(117 255 243 / 48%); background: rgb(7 40 45 / 94%); color: #e0fffc; }
-.research-ocean.complete { height: 220px; border-color: #5d5630; transition: height .5s ease, border-color .5s ease; }
-.response .research-ocean { margin: 4px 0 20px; }
-.response .research-ocean.complete { height: 190px; }
+.research-ocean.complete { height: 350px; border-color: #5d694b; }
+.response .research-ocean { margin: 0; }
+.response .research-ocean.complete { height: 340px; }
 @keyframes source-surface { from { opacity: 0; transform: translateY(9px) scale(.96); } }
 .messages { overflow: auto; overscroll-behavior-y: contain; padding: 26px var(--chat-gutter) 34px; scrollbar-color: #b9bbb6 transparent; scrollbar-gutter: stable; scrollbar-width: thin; }
 .messages::-webkit-scrollbar { width: 10px; }
