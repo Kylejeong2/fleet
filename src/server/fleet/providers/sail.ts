@@ -23,6 +23,7 @@ const MessageSchema = z.object({
 
 const SearchArgumentsSchema = z.object({ query: z.string().min(1).max(200) })
 const FetchArgumentsSchema = z.object({ url: HttpUrlSchema })
+const MAX_RESEARCH_TOOL_CALLS = 3
 
 const sleep = (milliseconds: number, signal: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {
@@ -45,6 +46,7 @@ export class SailWorkerModel implements WorkerModel {
   }
 
   async respond(turn: WorkerTurn, signal: AbortSignal): Promise<WorkerResponse> {
+    const toolBudgetReached = turn.history.length >= MAX_RESEARCH_TOOL_CALLS
     // Sail's DeepSeek V4 Flash is ASAP-only and rejects background or idempotent requests.
     const response = await fetch(`${this.baseUrl}/responses`, {
       method: 'POST',
@@ -56,32 +58,34 @@ export class SailWorkerModel implements WorkerModel {
         model: this.model,
         max_output_tokens: 2_000,
         input: this.#prompt(turn),
-        tools: [
-          {
-            type: 'function',
-            name: 'search',
-            description: 'Search the public web for relevant sources.',
-            strict: true,
-            parameters: {
-              type: 'object',
-              properties: { query: { type: 'string' } },
-              required: ['query'],
-              additionalProperties: false,
+        ...(toolBudgetReached ? {} : {
+          tools: [
+            {
+              type: 'function',
+              name: 'search',
+              description: 'Search the public web for relevant sources.',
+              strict: true,
+              parameters: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+                additionalProperties: false,
+              },
             },
-          },
-          {
-            type: 'function',
-            name: 'fetch',
-            description: 'Fetch one relevant URL to inspect its content.',
-            strict: true,
-            parameters: {
-              type: 'object',
-              properties: { url: { type: 'string' } },
-              required: ['url'],
-              additionalProperties: false,
+            {
+              type: 'function',
+              name: 'fetch',
+              description: 'Fetch one relevant URL to inspect its content.',
+              strict: true,
+              parameters: {
+                type: 'object',
+                properties: { url: { type: 'string' } },
+                required: ['url'],
+                additionalProperties: false,
+              },
             },
-          },
-        ],
+          ],
+        }),
       }),
       signal,
     })
@@ -124,7 +128,9 @@ export class SailWorkerModel implements WorkerModel {
       `Question: ${turn.question}`,
       `Objective: ${turn.objective}`,
       `Evidence already collected: ${JSON.stringify(turn.history)}`,
-      'Use Search and Fetch when useful. Return a concise source-aware finding when finished.',
+      turn.history.length >= MAX_RESEARCH_TOOL_CALLS
+        ? 'The research tool budget is exhausted. Return a concise source-aware finding now. Do not request another tool.'
+        : `Use Search and Fetch when useful. You have ${MAX_RESEARCH_TOOL_CALLS - turn.history.length} tool calls remaining. Return a concise source-aware finding as soon as you have enough evidence.`,
     ].join('\n\n')
   }
 }

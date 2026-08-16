@@ -36,3 +36,11 @@ Browser-driven run `e2c6e48a-9b57-4292-aef4-78dcd3ae62db` selected **Live fleet*
 The event journal was checked independently with completed run `7a75fde2-9b73-4a2b-bb7b-20c0a3578db0`. It contained 35 strictly ordered events from sequence 1 through 35, including one `synthesis.started`, 28 real `synthesis.delta` events, and one `run.completed`. Reopening the SSE endpoint with `Last-Event-ID: 10` returned sequences 11 through 35.
 
 Two research-heavy attempts also exercised the failure path. Runs `552bbbf5-cb07-4609-8479-b02c105c1b92` and `c997b03b-ca07-41c3-a572-c13e47f00777` recorded 13 successful Browserbase Search/Fetch calls before Sail returned HTTP 503. Workers failed independently, no deterministic fallback was used, and synthesis correctly did not start when every worker lacked a finding. These failures remain useful evidence that paid-provider errors are visible rather than silently replaced.
+
+## Actual UI reliability pass
+
+The Chrome flow was then tested strictly through visible controls: select one agent, choose **Live fleet**, enter a research question, click **Launch fleet**, inspect tool cards in the modal, wait for the terminal badge, close the modal, and read the rendered answer. Runs were not created or polled through test-only API calls.
+
+The first UI attempt, `ce13adc3-e9b3-49cc-a35b-96e724521dbe`, displayed one successful Search and two successful Fetch calls before a visible Sail HTTP 503 failure. Retry `a536caae-8db0-4c03-bfd0-a87ab7fcaf4a` displayed eight successful searches and 29 real sources, but the model ignored the stop instruction until the coordinator's turn limit failed the run. Both failures produced a correct failed modal and no fabricated answer.
+
+Fleet now enforces a three-call evidence budget at the provider boundary. Once three Search or Fetch results are present, the next Sail request omits tool definitions and requires a source-aware finding. After this change, the same visible Chrome flow completed as run `053b01ef-e55d-42f6-8d1e-22004a07821c`: one Search, two Fetch calls, nine visible sources, one succeeded agent, 166 Gateway deltas, and a 792-character final answer rendered after the modal closed. The browser recorded no console errors, failed HTTP responses, or page exceptions.

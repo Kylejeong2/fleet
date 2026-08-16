@@ -4,7 +4,7 @@ Fleet separates the coordinator from three capabilities: a worker model, researc
 
 ## Sail workers
 
-Live workers call Sail's Responses-compatible API with `deepseek-ai/DeepSeek-V4-Flash`. The model receives one focused objective and may request Browserbase Search or Fetch. Tool results return to that worker until it produces a finding or reaches the configured turn limit.
+Live workers call Sail's Responses-compatible API with `deepseek-ai/DeepSeek-V4-Flash`. The model receives one focused objective and may request Browserbase Search or Fetch. Tool results return to that worker until it produces a finding. Each worker has a three-call research-tool budget; after that budget is exhausted, Fleet removes tool definitions from the next model request and requires a source-aware finding. The coordinator's broader turn limit remains a final safety boundary.
 
 Fleet does not claim that a pending Sail response is streaming. It records model and tool activity around each completed call.
 

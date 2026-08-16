@@ -42,4 +42,39 @@ describe('SailWorkerModel', () => {
     expect(body).not.toHaveProperty('metadata')
     expect(request.mock.calls[0]?.[1]?.headers).not.toHaveProperty('idempotency-key')
   })
+
+  it('removes tools and requires a finding after the evidence budget is exhausted', async () => {
+    const request = vi.fn(async (_input: string | URL | Request, init?: RequestInit) =>
+      Response.json({
+        id: 'response-2',
+        status: 'completed',
+        output: [
+          {
+            type: 'message',
+            content: [{ type: 'output_text', text: 'A bounded source-aware finding.' }],
+          },
+        ],
+      }),
+    )
+    vi.stubGlobal('fetch', request)
+
+    const runId = createRunId()
+    const result = await new SailWorkerModel('test-key').respond(
+      {
+        question: 'What does Sail build?',
+        objective: 'Find primary sources',
+        agentId: createAgentId(runId, 0),
+        history: Array.from({ length: 3 }, (_, index) => ({
+          call: { kind: 'search' as const, query: `query ${index}` },
+          result: { kind: 'search' as const, results: [] },
+        })),
+      },
+      new AbortController().signal,
+    )
+
+    expect(result).toEqual({ kind: 'finding', finding: 'A bounded source-aware finding.' })
+    const body = JSON.parse(String(request.mock.calls[0]?.[1]?.body)) as Record<string, unknown>
+    expect(body).not.toHaveProperty('tools')
+    expect(body.input).toContain('tool budget is exhausted')
+  })
 })
