@@ -322,7 +322,6 @@ function WelcomeComposer(props: {
   return (
     <section className="welcome-stage" aria-labelledby="research-heading">
       <div className="intro">
-        <span className="intro-mark" aria-hidden="true"><FleetMark /></span>
         <h1 id="research-heading">What should the fleet investigate?</h1>
         <p>Send parallel researchers across the problem, then bring the evidence back into one answer.</p>
       </div>
