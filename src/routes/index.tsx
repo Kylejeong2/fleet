@@ -463,9 +463,9 @@ function ResearchConversation({
             <span>{responseTitle(snapshot)}</span>
             {snapshot.status === 'running' || snapshot.status === 'synthesizing' ? <TypingDots /> : null}
           </header>
-          {answer
-            ? <AnswerText text={answer} onOpenAgent={onOpenAgent} />
-            : <ResearchProgress snapshot={snapshot} />}
+          {answer ? null : <ResearchProgress snapshot={snapshot} />}
+          <ResearchActivity snapshot={snapshot} onOpenAgent={onOpenAgent} />
+          {answer ? <AnswerText text={answer} onOpenAgent={onOpenAgent} /> : null}
           {snapshot.error ? <p className="inline-error" role="alert">{snapshot.error}</p> : null}
         </article>
       </div>
@@ -495,9 +495,9 @@ function FleetDialog(props: {
       >
         <div className="fleet-main">
           <header className="fleet-head">
-            <h2 id="fleet-dialog-title">Research fleet</h2>
+            <h2 id="fleet-dialog-title">Fleet</h2>
             <span>{workingCount} working · {props.completeCount} finished</span>
-            <button ref={props.closeButtonRef} type="button" onClick={props.onClose} aria-label="Close research fleet">×</button>
+            <button ref={props.closeButtonRef} type="button" onClick={props.onClose} aria-label="Close fleet">×</button>
           </header>
           <div className="objective-block">
             <div>
@@ -515,7 +515,6 @@ function FleetDialog(props: {
               <i style={{ width: `${(props.completeCount / props.snapshot.agentCount) * 100}%` }} />
             </div>
           </div>
-          <OrchestratorPanel snapshot={props.snapshot} onSelectAgent={props.onSelectAgent} />
           <div className="agent-grid" aria-label="Research agents">
             {props.snapshot.agents.length ? props.snapshot.agents.map((agent, index) => (
               <AgentCard
@@ -534,46 +533,92 @@ function FleetDialog(props: {
   )
 }
 
-function OrchestratorPanel({
+function ResearchActivity({
   snapshot,
-  onSelectAgent,
+  onOpenAgent,
 }: {
   snapshot: RunSnapshot
-  onSelectAgent: (id: string) => void
+  onOpenAgent: (id: string) => void
 }) {
+  const running = snapshot.status === 'running' || snapshot.status === 'synthesizing'
+  const started = snapshot.agents.filter((agent) => agent.status !== 'planned').length
   return (
-    <details className="orchestrator-panel" open>
+    <details className="research-activity" open={running}>
       <summary>
         <span className="orchestrator-mark" aria-hidden="true"><FleetMark /></span>
-        <span><strong>Orchestrator reasoning</strong><small>Live planning and subagent dispatch</small></span>
+        <span>
+          <strong>Live fleet activity</strong>
+          <small>{started} of {snapshot.agentCount} subagents invoked · reasoning and tool calls</small>
+        </span>
         <ChevronDown className="reasoning-chevron" aria-hidden="true" size={17} strokeWidth={1.8} />
       </summary>
-      <div className="orchestrator-stream" aria-live="polite">
-        {snapshot.orchestratorTrace.length ? snapshot.orchestratorTrace.map((entry) => (
-          <div className="orchestrator-entry" key={entry.sequence}>
-            <span>{entry.phase}</span>
-            <p>{entry.message}</p>
-          </div>
-        )) : <p className="empty-trace">The orchestrator is interpreting the question.</p>}
-        {snapshot.agents.length ? (
-          <div className="dispatch-stream">
-            <div className="trace-label">Subagent invocations</div>
-            {snapshot.agents.map((agent, index) => (
-              <button type="button" key={agent.id} onClick={() => onSelectAgent(agent.id)}>
-                <span>A{index + 1}</span>
-                <span><strong>{agentNames[index % agentNames.length]}</strong><small>{agent.objective}</small></span>
-                <em className={agent.status}>{displayStatus(agent.status)}</em>
-              </button>
-            ))}
-          </div>
-        ) : null}
+      <div className="research-activity-stream" aria-live="polite">
+        <section className="orchestrator-chat" aria-label="Orchestrator reasoning">
+          <h3>Orchestrator</h3>
+          {snapshot.orchestratorTrace.length ? snapshot.orchestratorTrace.map((entry) => (
+            <div className="orchestrator-entry" key={entry.sequence}>
+              <span>{entry.phase}</span>
+              <p>{entry.message}</p>
+            </div>
+          )) : <p className="empty-trace">Interpreting the question and preparing the fleet.</p>}
+        </section>
+        <section className="main-agent-stream" aria-label="Subagent reasoning and tool calls">
+          <h3>Subagent traces</h3>
+          {snapshot.agents.map((agent, index) => (
+            <AgentActivityRow
+              key={agent.id}
+              agent={agent}
+              index={index}
+              onOpen={() => onOpenAgent(agent.id)}
+            />
+          ))}
+        </section>
+      </div>
+    </details>
+  )
+}
+
+function AgentActivityRow(props: { agent: AgentSnapshot; index: number; onOpen: () => void }) {
+  return (
+    <details className={`main-agent-row ${props.agent.status}`}>
+      <summary>
+        <span>A{props.index + 1}</span>
+        <strong>{agentNames[props.index % agentNames.length]}</strong>
+        <small>{props.agent.activity}</small>
+        <em>{displayStatus(props.agent.status)}</em>
+        <ChevronDown className="reasoning-chevron" aria-hidden="true" size={15} strokeWidth={1.8} />
+      </summary>
+      <div className="main-agent-detail">
+        <div className="main-reasoning-list">
+          <strong>Reasoning</strong>
+          {props.agent.reasoning.length ? props.agent.reasoning.map((entry, index) => (
+            <p key={entry.sequence}><span>{index + 1}</span>{entry.text}</p>
+          )) : <p className="empty-trace">Waiting for the first model response.</p>}
+        </div>
+        <div className="main-tool-list">
+          <strong>Tool calls</strong>
+          {props.agent.trace.length ? props.agent.trace.map((trace) => (
+            <details className={`main-tool-call ${trace.status}`} key={trace.id}>
+              <summary>
+                <span className="tool-icon" aria-hidden="true">
+                  {trace.tool === 'search'
+                    ? <SearchIcon size={13} strokeWidth={1.8} />
+                    : <ExternalLink size={13} strokeWidth={1.8} />}
+                </span>
+                <span><strong>{trace.tool === 'search' ? 'Search' : 'Fetch'}</strong><small>{trace.input}</small></span>
+                <em>{displayStatus(trace.status)}</em>
+              </summary>
+              <pre>{toolDetail(trace)}</pre>
+            </details>
+          )) : <p className="empty-trace">No tool calls yet.</p>}
+        </div>
+        <button className="open-agent-trace" type="button" onClick={props.onOpen}>Open agent trace</button>
       </div>
     </details>
   )
 }
 
 function AgentCard(props: { agent: AgentSnapshot; index: number; selected: boolean; onSelect: () => void }) {
-  const progress = agentProgress(props.agent)
   return (
     <button
       type="button"
@@ -582,13 +627,8 @@ function AgentCard(props: { agent: AgentSnapshot; index: number; selected: boole
       aria-pressed={props.selected}
       aria-label={`${agentNames[props.index % agentNames.length]}, ${displayStatus(props.agent.status)}`}
     >
-      <div className="agent-card-top">
-        <Bot index={props.index} active={props.agent.status === 'running'} />
-        <span className="agent-status"><i />{displayStatus(props.agent.status)}</span>
-      </div>
+      <Bot index={props.index} active={props.agent.status === 'running'} />
       <strong>{agentNames[props.index % agentNames.length]}</strong>
-      <span className="agent-objective">{props.agent.objective}</span>
-      <span className="agent-progress"><i style={{ width: `${progress}%` }} /></span>
     </button>
   )
 }
@@ -596,9 +636,8 @@ function AgentCard(props: { agent: AgentSnapshot; index: number; selected: boole
 function AgentSkeletons({ count }: { count: number }) {
   return Array.from({ length: count }, (_, index) => (
     <div className="agent-card planned skeleton" key={index} aria-hidden="true">
-      <div className="agent-card-top"><Bot index={index} active /></div>
+      <Bot index={index} active />
       <strong>Planning agent</strong>
-      <span className="agent-objective">Preparing an independent research angle</span>
     </div>
   ))
 }
@@ -880,12 +919,6 @@ function uniqueSourceCount(trace: ToolTrace[]): number {
     else urls.add(entry.result.url)
   }
   return urls.size
-}
-
-function agentProgress(agent: AgentSnapshot): number {
-  if (agent.status === 'succeeded' || agent.status === 'failed') return 100
-  if (agent.status === 'running') return Math.min(88, 28 + agent.trace.length * 24)
-  return 8
 }
 
 function responseTitle(snapshot: RunSnapshot): string {

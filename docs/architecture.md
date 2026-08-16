@@ -66,9 +66,9 @@ interface Synthesizer {
 }
 ```
 
-`SailWorkerModel` calls the stable Sail Responses API with `deepseek-ai/DeepSeek-V4-Flash`. Sail responses do not stream. Fleet reports accurate activity around each synchronous model turn and each local tool call. It never fabricates token deltas for a Sail worker. The coordinator itself remains outside the request lifecycle, so accepting a run does not wait for research to finish.
+`SailWorkerModel` calls the stable Sail Responses API with `deepseek-ai/DeepSeek-V4-Flash`. Sail responses do not stream. Fleet reports accurate activity around each synchronous model turn and each local tool call. It never fabricates token deltas for a Sail worker. Explicit overload and transient HTTP responses use six bounded attempts with capped exponential backoff; ambiguous network failures still fail closed. The coordinator itself remains outside the request lifecycle, so accepting a run does not wait for research to finish.
 
-`BrowserbaseResearchTools` calls Browserbase Search and Fetch. The adapter validates URLs, bounds fetched content, parses external JSON, and returns display-safe results. Fleet retries a Browserbase request only before the provider accepts it. An ambiguous failure becomes a visible failed tool event rather than a duplicate paid call.
+`BrowserbaseResearchTools` calls Browserbase Search and Fetch. The adapter validates URLs, bounds fetched content, parses external JSON, and returns display-safe results. An ambiguous failure becomes a visible failed tool event rather than a duplicate paid call.
 
 `GatewaySynthesizer` uses AI SDK with `openai/gpt-5.6-sol` through Vercel AI Gateway. Each synthesis finding includes its originating agent ID and deduplicated source URLs. The model streams detailed Markdown with inline source links and exact agent citation anchors; the browser converts those anchors into controls that open the matching trace. Its text deltas become synthesis events. If `AI_GATEWAY_API_KEY` is absent, only explicit development mode can select the deterministic synthesizer. The final snapshot names the synthesizer so development output cannot look like a verified Gateway result.
 
@@ -80,7 +80,7 @@ The route owns one active projection and replay cursor. Its SSE reader reduces t
 
 The route owns the current run, selected agent, and composer settings for this single-conversation release. The trace panel owns only its expanded tool cards. Agent animation derives from agent status. There is no second animation state to synchronize.
 
-The fleet view appears above the chat. Selecting an agent opens a right-side trace drawer. Search and Fetch entries use expandable buttons with `aria-expanded`. The answer uses a safe Markdown renderer without raw HTML: HTTP source links open externally, while exact `#fleet-agent=` links become compact buttons that open Fleet on the cited agent. Closing a layer restores focus to its trigger. Reduced-motion mode removes movement while keeping text status and progress.
+The main conversation owns the live orchestrator messages, subagent reasoning summaries, and expandable Search and Fetch activity. Fleet opens only when requested and dedicates two-thirds of its compact modal to a scrollable grid of bot-and-name agent cards; selecting one updates the one-third trace drawer. The answer uses a safe Markdown renderer without raw HTML: HTTP source links open externally, while exact `#fleet-agent=` links become compact buttons that open Fleet on the cited agent. Closing a layer restores focus to its trigger. Reduced-motion mode removes movement while keeping text status and progress.
 
 ## Deferred production machinery
 

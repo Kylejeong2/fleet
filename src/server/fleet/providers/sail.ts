@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { HttpUrlSchema } from '../../../lib/fleet-protocol'
+import { fleetLog } from '../log'
 import type { WorkerModel, WorkerResponse, WorkerTurn } from '../ports'
 
 const ResponseSchema = z.object({
@@ -37,15 +38,41 @@ const FetchArgumentsSchema = z.object({
   reasoning: ToolReasoningSchema,
 })
 const MAX_RESEARCH_TOOL_CALLS = 3
+const MAX_SAIL_REQUEST_ATTEMPTS = 6
+const RETRYABLE_SAIL_STATUSES = new Set([429, 500, 502, 503, 504])
+const BASE_RETRY_DELAY_MS = 750
+const MAX_RETRY_DELAY_MS = 12_000
 
 const sleep = (milliseconds: number, signal: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, milliseconds)
-    signal.addEventListener('abort', () => {
+    if (signal.aborted) {
+      reject(new Error('Research cancelled'))
+      return
+    }
+    const onAbort = () => {
       clearTimeout(timer)
       reject(new Error('Research cancelled'))
-    }, { once: true })
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, milliseconds)
+    signal.addEventListener('abort', onAbort, { once: true })
   })
+
+const retryAfterMilliseconds = (response: Response): number | null => {
+  const value = response.headers.get('retry-after')
+  if (!value) return null
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000
+  const date = Date.parse(value)
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : null
+}
+
+const exponentialRetryDelay = (retry: number): number => {
+  const bounded = Math.min(MAX_RETRY_DELAY_MS, BASE_RETRY_DELAY_MS * (2 ** retry))
+  return Math.round(bounded * (0.75 + Math.random() * 0.5))
+}
 
 export class SailWorkerModel implements WorkerModel {
   readonly name: string
@@ -61,7 +88,7 @@ export class SailWorkerModel implements WorkerModel {
   async respond(turn: WorkerTurn, signal: AbortSignal): Promise<WorkerResponse> {
     const toolBudgetReached = turn.history.length >= MAX_RESEARCH_TOOL_CALLS
     // Sail's DeepSeek V4 Flash is ASAP-only and rejects background or idempotent requests.
-    const response = await fetch(`${this.baseUrl}/responses`, {
+    const response = await this.#request(`${this.baseUrl}/responses`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${this.apiKey}`,
@@ -106,28 +133,26 @@ export class SailWorkerModel implements WorkerModel {
           ],
         }),
       }),
-      signal,
-    })
+    }, signal, 'create')
     if (!response.ok) throw new Error(`Sail request failed with ${response.status}`)
     let payload = ResponseSchema.parse(await response.json())
     for (let poll = 0; payload.status === 'queued' || payload.status === 'in_progress'; poll += 1) {
       if (poll >= 300) throw new Error('Sail response timed out')
       await sleep(1_000, signal)
-      const next = await fetch(`${this.baseUrl}/responses/${encodeURIComponent(payload.id)}`, {
+      const next = await this.#request(`${this.baseUrl}/responses/${encodeURIComponent(payload.id)}`, {
         headers: { authorization: `Bearer ${this.apiKey}` },
-        signal,
-      })
+      }, signal, 'poll')
       if (!next.ok) throw new Error(`Sail polling failed with ${next.status}`)
       payload = ResponseSchema.parse(await next.json())
     }
     if (payload.status !== 'completed') throw new Error(`Sail response ended as ${payload.status}`)
-    const reasoning = payload.output
+    const reasoningParts = payload.output
       .map((item) => ReasoningSchema.safeParse(item))
       .filter((item) => item.success)
       .flatMap((item) => [...item.data.summary, ...item.data.content])
-      .map((item) => item.text)
-      .join('\n')
-      .trim()
+      .map((item) => item.text.trim())
+      .filter(Boolean)
+    const reasoning = [...new Set(reasoningParts)].join('\n')
     for (const item of payload.output) {
       const functionCall = FunctionCallSchema.safeParse(item)
       if (!functionCall.success) continue
@@ -156,6 +181,35 @@ export class SailWorkerModel implements WorkerModel {
       .trim()
     if (!finding) throw new Error('Sail returned no finding or tool call')
     return { kind: 'finding', finding, ...(reasoning ? { reasoning } : {}) }
+  }
+
+  async #request(
+    input: string,
+    init: RequestInit,
+    signal: AbortSignal,
+    operation: 'create' | 'poll',
+  ): Promise<Response> {
+    for (let attempt = 1; attempt <= MAX_SAIL_REQUEST_ATTEMPTS; attempt += 1) {
+      const response = await fetch(input, { ...init, signal })
+      if (
+        !RETRYABLE_SAIL_STATUSES.has(response.status) ||
+        attempt === MAX_SAIL_REQUEST_ATTEMPTS
+      ) {
+        return response
+      }
+      const delayMs = retryAfterMilliseconds(response) ?? exponentialRetryDelay(attempt - 1)
+      fleetLog('warn', 'sail.request_retry', {
+        model: this.model,
+        operation,
+        status: response.status,
+        attempt,
+        maxAttempts: MAX_SAIL_REQUEST_ATTEMPTS,
+        delayMs,
+      })
+      await response.body?.cancel()
+      await sleep(delayMs, signal)
+    }
+    throw new Error('Sail request retry loop exited unexpectedly')
   }
 
   #prompt(turn: WorkerTurn): string {

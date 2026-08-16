@@ -6,7 +6,7 @@ When inference is cheap enough, breadth becomes a feature. Fleet spends addition
 
 ## What is included
 
-- A TanStack Start chat interface with a research fleet modal and per-agent trace drawer.
+- A TanStack Start chat interface with live orchestration activity in the conversation plus a compact fleet modal and per-agent trace drawer.
 - An HTTP research service that is independent of React and reusable by other clients.
 - A replayable Server-Sent Events protocol backed by an ordered SQLite journal.
 - Bounded parallel workers with isolated failures and explicit provider activity.

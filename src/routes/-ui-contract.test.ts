@@ -41,4 +41,13 @@ describe('interface copy contract', () => {
     expect(pixelFontSizes.length).toBeGreaterThan(0)
     expect(Math.min(...pixelFontSizes)).toBeGreaterThanOrEqual(12)
   })
+
+  it('keeps live traces in chat and the Fleet modal focused on compact agent cards', () => {
+    expect(interfaceSource).toContain('<ResearchActivity snapshot={snapshot} onOpenAgent={onOpenAgent} />')
+    expect(interfaceSource).toContain('<h2 id="fleet-dialog-title">Fleet</h2>')
+    expect(interfaceSource).not.toContain('Research fleet</h2>')
+    expect(interfaceSource).not.toContain('<OrchestratorPanel')
+    expect(interfaceSource).not.toContain('className="agent-objective"')
+    expect(interfaceStyles).toContain('grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr)')
+  })
 })

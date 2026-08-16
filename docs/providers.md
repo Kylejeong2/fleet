@@ -4,7 +4,7 @@ Fleet separates the coordinator from three capabilities: a worker model, researc
 
 ## Sail workers
 
-Live workers call Sail's Responses-compatible API with `deepseek-ai/DeepSeek-V4-Flash`. The model receives one focused objective and may request Browserbase Search or Fetch. Tool results return to that worker until it produces a finding. Each worker has a three-call research-tool budget; after that budget is exhausted, Fleet removes tool definitions from the next model request and requires a source-aware finding. The coordinator's broader turn limit remains a final safety boundary.
+Live workers call Sail's Responses-compatible API with `deepseek-ai/DeepSeek-V4-Flash`. The model receives one focused objective and may request Browserbase Search or Fetch. Tool results return to that worker until it produces a finding. Each worker has a three-call research-tool budget; after that budget is exhausted, Fleet removes tool definitions from the next model request and requires a source-aware finding. The coordinator's broader turn limit remains a final safety boundary. Explicit 429, 500, 502, 503, and 504 responses receive up to six total attempts with capped exponential backoff, jitter, and `Retry-After` support.
 
 Fleet does not claim that a pending Sail response is streaming. It records model and tool activity around each completed call.
 
@@ -25,7 +25,7 @@ SAIL_RESEARCH_MODEL=deepseek-ai/DeepSeek-V4-Flash
 
 The Search and Fetch adapters send requests to Browserbase, validate the external response, and return bounded display-safe content. Fetch accepts only public HTTP and HTTPS URLs. Fleet resolves the hostname immediately before the provider call and requires every returned IPv4 or IPv6 address to be public. Browserbase redirects are disabled so the validated destination cannot redirect into a private network. Deployments must use a trusted DNS resolver because DNS validation and the remote Fetch request occur in separate network contexts.
 
-Fleet avoids automatic retries after an ambiguous provider failure because the original paid request may have been accepted. The failure remains visible in the agent trace.
+Fleet retries only explicit retryable HTTP responses from Sail. Ambiguous transport failures are not retried because the original paid request may have been accepted. Exhausted overload retries remain visible in the agent trace.
 
 Required variable:
 

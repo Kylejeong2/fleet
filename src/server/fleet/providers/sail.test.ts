@@ -11,7 +11,11 @@ describe('SailWorkerModel', () => {
         id: 'response-1',
         status: 'completed',
         output: [
-          { type: 'reasoning', content: [{ type: 'reasoning_text', text: 'Thinking' }] },
+          {
+            type: 'reasoning',
+            summary: [{ type: 'summary_text', text: 'Thinking' }],
+            content: [{ type: 'reasoning_text', text: 'Thinking' }],
+          },
           {
             type: 'function_call',
             name: 'search',
@@ -115,5 +119,61 @@ describe('SailWorkerModel', () => {
     const body = JSON.parse(String(request.mock.calls[0]?.[1]?.body)) as Record<string, unknown>
     expect(body).not.toHaveProperty('tools')
     expect(body.input).toContain('tool budget is exhausted')
+  })
+
+  it('retries overloaded inference requests with bounded exponential retry handling', async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response('overloaded', {
+        status: 503,
+        headers: { 'retry-after': '0' },
+      }))
+      .mockResolvedValueOnce(new Response('still overloaded', {
+        status: 503,
+        headers: { 'retry-after': '0' },
+      }))
+      .mockResolvedValueOnce(Response.json({
+        id: 'response-after-retry',
+        status: 'completed',
+        output: [{
+          type: 'message',
+          content: [{ type: 'output_text', text: 'Recovered after overload.' }],
+        }],
+      }))
+    vi.stubGlobal('fetch', request)
+
+    const runId = createRunId()
+    const result = await new SailWorkerModel('test-key').respond(
+      {
+        question: 'What does Sail build?',
+        objective: 'Find primary sources',
+        agentId: createAgentId(runId, 0),
+        history: [],
+      },
+      new AbortController().signal,
+    )
+
+    expect(request).toHaveBeenCalledTimes(3)
+    expect(result).toEqual({ kind: 'finding', finding: 'Recovered after overload.' })
+  })
+
+  it('stops retrying after six overloaded inference responses', async () => {
+    const request = vi.fn(async () => new Response('overloaded', {
+      status: 503,
+      headers: { 'retry-after': '0' },
+    }))
+    vi.stubGlobal('fetch', request)
+
+    const runId = createRunId()
+    await expect(new SailWorkerModel('test-key').respond(
+      {
+        question: 'What does Sail build?',
+        objective: 'Find primary sources',
+        agentId: createAgentId(runId, 0),
+        history: [],
+      },
+      new AbortController().signal,
+    )).rejects.toThrow('Sail request failed with 503')
+
+    expect(request).toHaveBeenCalledTimes(6)
   })
 })
