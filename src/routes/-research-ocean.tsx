@@ -23,15 +23,18 @@ type OceanAgent = {
 type OceanState = {
   agents: OceanAgent[]
   complete: boolean
+  launching: boolean
   synthesizing: boolean
 }
 
 export function ResearchOcean({
   snapshot,
   onOpenAgent,
+  launching = false,
 }: {
   snapshot?: RunSnapshot
   onOpenAgent?: (agentId: string) => void
+  launching?: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const prefersReducedMotion = useReducedMotion()
@@ -49,12 +52,14 @@ export function ResearchOcean({
   const liveState = useRef<OceanState>({
     agents,
     complete: snapshot?.status === 'completed',
+    launching,
     synthesizing: snapshot?.status === 'synthesizing',
   })
   const openAgent = useRef(onOpenAgent)
   liveState.current = {
     agents,
     complete: snapshot?.status === 'completed',
+    launching,
     synthesizing: snapshot?.status === 'synthesizing',
   }
   openAgent.current = onOpenAgent
@@ -257,16 +262,21 @@ function useThreeOcean(
       const preview = boatCount === 1 && liveState.current.agents[0]?.status === 'preview'
       const boat = createBoat(preview ? 1.25 : .36)
       boat.userData.agentIndex = index
-      boat.userData.progress = preview ? .08 : 0
+      boat.userData.progress = preview ? .24 : 0
       boat.userData.velocity = 0
       boats.push(boat)
       scene.add(boat)
 
       const territory = territories[index % territories.length]!
       const spread = ((Math.floor(index / territories.length) % 7) - 3) * .38
-      const destination = territory.world.clone().add(new THREE.Vector3(spread, 0, (index % 4) * .32))
-      const control = new THREE.Vector3(destination.x * .42 + ((index % 5) - 2) * .32, .55 + (index % 3) * .12, destination.z * .28 + 1.2)
-      const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, -.52, 5.6), control, destination)
+      const destination = preview
+        ? new THREE.Vector3(5, -.58, 5.4)
+        : territory.world.clone().add(new THREE.Vector3(spread, 0, (index % 4) * .32))
+      const start = preview ? new THREE.Vector3(-5, -.62, 5.4) : new THREE.Vector3(0, -.52, 5.6)
+      const control = preview
+        ? new THREE.Vector3(0, -.34, 5)
+        : new THREE.Vector3(destination.x * .42 + ((index % 5) - 2) * .32, .55 + (index % 3) * .12, destination.z * .28 + 1.2)
+      const curve = new THREE.QuadraticBezierCurve3(start, control, destination)
       boat.userData.curve = curve
       const routeGeometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(44))
       const routeMaterial = new THREE.LineBasicMaterial({ color: 0x4beadd, transparent: true, opacity: preview ? 0 : .06, blending: THREE.AdditiveBlending })
@@ -335,14 +345,17 @@ function useThreeOcean(
         const agent = state.agents[index]
         if (!agent) return
         const preview = agent.status === 'preview'
-        const targetProgress = preview || agent.status === 'planned'
-          ? .025
+        const targetProgress = preview
+          ? state.launching ? .9 : .24
+          : agent.status === 'planned'
+            ? .025
           : agent.status === 'succeeded'
             ? .1 + (index % 8) * .012
             : agent.status === 'failed'
               ? .78
               : .93
-        boat.userData.progress = THREE.MathUtils.lerp(boat.userData.progress as number, targetProgress, reducedMotion ? 1 : .025 + (index % 5) * .002)
+        const travelEase = preview && state.launching ? .035 : .025 + (index % 5) * .002
+        boat.userData.progress = THREE.MathUtils.lerp(boat.userData.progress as number, targetProgress, reducedMotion ? 1 : travelEase)
         const curve = boat.userData.curve as THREE.QuadraticBezierCurve3
         const progress = boat.userData.progress as number
         const point = curve.getPoint(progress)

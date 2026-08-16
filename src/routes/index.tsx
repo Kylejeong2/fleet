@@ -101,6 +101,7 @@ const botPalettes = [
 ] as const
 
 function FleetHome() {
+  const prefersReducedMotion = useReducedMotion()
   const [hydrated, setHydrated] = useState(false)
   const [question, setQuestion] = useState('')
   const [agentCount, setAgentCount] = useState(50)
@@ -239,6 +240,7 @@ function FleetHome() {
   async function startResearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (question.trim().length < 3 || submitting) return
+    const launchStartedAt = performance.now()
     setSubmitting(true)
     setError(null)
     setSnapshot(null)
@@ -267,7 +269,13 @@ function FleetHome() {
             : 'Fleet could not start this run.'
         throw new Error(message)
       }
-      setSnapshot(RunSnapshotSchema.parse(body))
+      const nextSnapshot = RunSnapshotSchema.parse(body)
+      const minimumLaunchDuration = prefersReducedMotion ? 0 : 900
+      const remainingLaunchTime = minimumLaunchDuration - (performance.now() - launchStartedAt)
+      if (remainingLaunchTime > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingLaunchTime))
+      }
+      setSnapshot(nextSnapshot)
       setQuestion('')
     } catch (startError) {
       setError(errorMessage(startError))
@@ -340,9 +348,9 @@ function FleetHome() {
             <m.div
               className="conversation-stage"
               key="research-conversation"
-              initial={{ opacity: 0, y: 28 }}
+              initial={{ opacity: 1, y: 0 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: .72, delay: .12, ease: [.22, 1, .36, 1] }}
+              transition={{ duration: .2, ease: [.22, 1, .36, 1] }}
             >
               <ResearchConversation
                 snapshot={snapshot}
@@ -357,7 +365,7 @@ function FleetHome() {
               className="welcome-transition"
               key="research-welcome"
               exit={{ opacity: 0 }}
-              transition={{ duration: .58, ease: [.4, 0, .2, 1] }}
+              transition={{ duration: .82, ease: [.4, 0, .2, 1] }}
             >
               <WelcomeComposer
                 question={question}
@@ -470,7 +478,7 @@ function WelcomeComposer(props: {
         transition={{ layout: { duration: .95, ease: [.22, 1, .36, 1] } }}
       >
         <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
-          <ResearchOcean />
+          <ResearchOcean launching={props.submitting} />
         </Suspense>
       </m.div>
     </section>
