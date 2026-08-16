@@ -76,9 +76,9 @@ interface Synthesizer {
 
 TanStack Start renders the conversation rail, chat shell, and composer on the server. The initial page does not wait for a research run.
 
-One `LiveRunStore` owns the active projection and replay cursor. The SSE reader reduces events in order and publishes at most one React notification per animation frame. The conversation rail does not subscribe to the hot event stream.
+The route owns one active projection and replay cursor. Its SSE reader reduces typed events in order, ignores duplicates, and replaces the projection from the snapshot endpoint after a gap. The conversation rail receives the projection as data and does not open a second event stream.
 
-The URL owns navigable selection such as the active run and selected agent. Components own temporary interaction state such as the composer value and expanded tool cards. Agent animation derives from agent status. There is no second animation state to synchronize.
+The route owns the current run, selected agent, and composer settings for this single-conversation release. The trace panel owns only its expanded tool cards. Agent animation derives from agent status. There is no second animation state to synchronize.
 
 The fleet view appears above the chat. Selecting an agent opens a right-side trace drawer. Search and Fetch entries use expandable buttons with `aria-expanded`. Closing a layer restores focus to its trigger. Reduced-motion mode removes movement while keeping text status and progress.
 
