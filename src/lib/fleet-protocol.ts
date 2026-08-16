@@ -1,3 +1,4 @@
+import ipaddr from 'ipaddr.js'
 import { z } from 'zod'
 
 export const RunIdSchema = z.string().uuid().brand<'RunId'>()
@@ -19,37 +20,11 @@ export const EventSeqSchema = z.number().int().positive().brand<'EventSeq'>()
 export type EventSeq = z.infer<typeof EventSeqSchema>
 
 export const isPublicIpAddress = (address: string): boolean => {
-  const normalized = address.toLowerCase().replace(/^\[|\]$/g, '')
-  if (normalized.includes(':')) {
-    if (
-      normalized === '::' ||
-      normalized === '::1' ||
-      /^f[cd]/.test(normalized) ||
-      /^fe[89ab]/.test(normalized) ||
-      /^ff/.test(normalized) ||
-      /^2001:db8(?::|$)/.test(normalized)
-    ) {
-      return false
-    }
-    const mappedIpv4 = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1]
-    return mappedIpv4 ? isPublicIpAddress(mappedIpv4) : true
+  try {
+    return ipaddr.process(address.replace(/^\[|\]$/g, '')).range() === 'unicast'
+  } catch {
+    return false
   }
-  const octets = normalized.split('.').map(Number)
-  if (octets.length !== 4 || octets.some((part) => !Number.isInteger(part))) return false
-  const [first, second] = octets
-  if (first === undefined || second === undefined) return false
-  return !(
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 100 && second >= 64 && second <= 127) ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && [0, 2, 168].includes(second)) ||
-    (first === 198 && [18, 19, 51].includes(second)) ||
-    (first === 203 && second === 0) ||
-    first >= 224
-  )
 }
 
 const isPublicHttpUrl = (value: string): boolean => {
