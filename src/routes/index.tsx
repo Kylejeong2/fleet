@@ -653,7 +653,7 @@ function ResearchActivity({
 }) {
   const running = snapshot.status === 'running' || snapshot.status === 'synthesizing'
   const answerStarted = snapshot.partialAnswer.length > 0 || snapshot.finalAnswer !== null
-  const [open, setOpen] = useState(!answerStarted)
+  const [open, setOpen] = useState(false)
   const wasAnswerStarted = useRef(answerStarted)
   const started = snapshot.agents.filter((agent) => agent.status !== 'planned').length
   const visibleAgents = snapshot.agents.filter((agent) => agent.status !== 'planned')

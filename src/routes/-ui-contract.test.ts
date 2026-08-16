@@ -62,6 +62,7 @@ describe('interface copy contract', () => {
     expect(interfaceSource).toContain('snapshot.orchestratorReasoning')
     expect(interfaceSource).toContain("snapshot.agents.filter((agent) => agent.status !== 'planned')")
     expect(interfaceSource).toContain("answerStarted && !wasAnswerStarted.current")
+    expect(interfaceSource).toContain('const [open, setOpen] = useState(false)')
     expect(interfaceSource).toContain('aria-controls="live-fleet-activity"')
     expect(interfaceSource).toContain("aria-label={open ? 'Hide fleet activity' : 'Show fleet activity'}")
     expect(interfaceSource).toContain("latestTool ? `${latestTool.tool === 'search' ? 'Search' : 'Fetch'}")
