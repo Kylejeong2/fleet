@@ -101,8 +101,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .select-item[data-state="checked"] { color: #1d1e1c; font-weight: 610; }
 .select-indicator { position: absolute; right: 9px; display: grid; width: 15px; height: 15px; place-items: center; color: #6e765f; }
 @keyframes select-open { from { opacity: 0; transform: translateY(-2px) scale(.985); } }
-.launch-button { display: flex; height: 38px; align-items: center; gap: 8px; margin-left: auto; padding: 0 15px; border: 0; border-radius: 10px; background: linear-gradient(135deg, #b9fff8, #4ce6d8); color: #04221f; box-shadow: 0 0 28px rgb(76 230 216 / 22%); cursor: pointer; font-size: 14px; font-weight: 650; white-space: nowrap; transition: box-shadow .18s, transform .18s; }
-.launch-button:hover:not(:disabled) { box-shadow: 0 0 38px rgb(76 230 216 / 38%); transform: translateY(-1px); }
+.launch-button { display: flex; height: 38px; align-items: center; gap: 8px; margin-left: auto; padding: 0 15px; border: 0; border-radius: 10px; background: #fff; color: #111a19; box-shadow: 0 2px 12px rgb(0 0 0 / 18%); cursor: pointer; font-size: 14px; font-weight: 650; white-space: nowrap; transition: box-shadow .18s, transform .18s; }
+.launch-button:hover:not(:disabled) { box-shadow: 0 5px 20px rgb(0 0 0 / 24%); transform: translateY(-1px); }
 .launch-button:disabled, .follow-up-composer button:disabled { cursor: not-allowed; opacity: .42; }
 
 .ocean-transition-frame { position: relative; width: 100%; min-height: 0; overflow: hidden; border-radius: 20px; isolation: isolate; }
@@ -348,6 +348,7 @@ details[open] > summary .reasoning-chevron { transform: rotate(180deg); }
 :root[data-theme="dark"] .select-item[data-state="checked"] { color: #fff; }
 :root[data-theme="dark"] .launch-button,
 :root[data-theme="dark"] .follow-up-composer button { background: #eceeeb; color: #151615; }
+:root[data-theme="dark"] .ocean-home .launch-button { background: #fff; color: #111a19; }
 :root[data-theme="dark"] .messages { scrollbar-color: #555851 transparent; }
 :root[data-theme="dark"] .messages::-webkit-scrollbar-thumb { background-color: #555851; }
 :root[data-theme="dark"] .messages::-webkit-scrollbar-thumb:hover { background-color: #73776e; }
