@@ -5,7 +5,7 @@ Fleet tests the event invariant first, then the visible experience.
 ## Core check
 
 ```bash
-npm run check
+pnpm check
 ```
 
 This command runs TypeScript validation, Vitest, and the production build. Unit and integration coverage includes ordered reduction, duplicate and gap handling, journal idempotency, bounded concurrency, isolated worker failure, Search and Fetch trace transitions, and exactly one synthesis phase.
@@ -13,7 +13,7 @@ This command runs TypeScript validation, Vitest, and the production build. Unit 
 ## Browser tests
 
 ```bash
-npm run test:e2e
+pnpm test:e2e
 ```
 
 The end-to-end flow submits a prompt, observes active agents, opens the fleet, selects an agent, expands tool activity, closes the dialog with the keyboard, and waits for the final answer. Responsive and reduced-motion checks run as separate cases.

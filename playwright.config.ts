@@ -13,7 +13,7 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
   ],
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 3100',
+    command: 'pnpm dev --host 127.0.0.1 --port 3100',
     url: 'http://127.0.0.1:3100',
     reuseExistingServer: true,
     timeout: 30_000,

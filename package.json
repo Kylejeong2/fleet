@@ -2,6 +2,7 @@
   "name": "fleet",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.22.0",
   "sideEffects": false,
   "type": "module",
   "scripts": {
@@ -11,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run src --passWithNoTests",
     "test:e2e": "playwright test --pass-with-no-tests",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check": "pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
     "@tanstack/react-router": "1.170.29",

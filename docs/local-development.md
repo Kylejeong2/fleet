@@ -3,15 +3,15 @@
 ## Prerequisites
 
 - Node.js 22.12 or newer.
-- npm.
+- pnpm 10.22.0. Corepack can install the version pinned in `package.json`.
 - Provider credentials only when using a live profile.
 
 ## Setup
 
 ```bash
-npm install
+pnpm install
 cp .env.example .env.local
-npm run dev
+pnpm dev
 ```
 
 The default database is `.fleet/fleet.sqlite`. The directory is ignored by Git. Delete only that specific file when you intentionally want a fresh local journal.
@@ -23,9 +23,9 @@ Use the `development` profile with 4 agents and concurrency 2 while changing the
 Before committing:
 
 ```bash
-npm run check
-npm run test:e2e
-npm audit --audit-level=high
+pnpm check
+pnpm test:e2e
+pnpm audit --audit-level=high
 ```
 
 ## Environment loading

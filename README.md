@@ -18,9 +18,9 @@ When inference is cheap enough, breadth becomes a feature. Fleet spends addition
 Fleet requires Node.js 22.12 or newer.
 
 ```bash
-npm install
+pnpm install
 cp .env.example .env.local
-npm run dev
+pnpm dev
 ```
 
 Open the URL printed by Vite. Development runs are deterministic by default, so the complete interface works without credentials.
@@ -30,11 +30,11 @@ To exercise real workers, add `SAIL_API_KEY` and `BROWSERBASE_API_KEY`, then sel
 ## Verify the build
 
 ```bash
-npm run check
-npm run test:e2e
+pnpm check
+pnpm test:e2e
 ```
 
-`npm run check` type-checks the application, runs unit and integration tests, and creates the production build. Browser tests cover the visible research flow separately.
+`pnpm check` type-checks the application, runs unit and integration tests, and creates the production build. Browser tests cover the visible research flow separately.
 
 ## Documentation
 
