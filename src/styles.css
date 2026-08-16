@@ -55,7 +55,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .intro { display: grid; justify-items: center; gap: 10px; text-align: center; }
 .intro h1, .intro p { margin: 0; }
 .intro h1 { font-size: clamp(29px, 3.8vw, 42px); font-weight: 520; letter-spacing: -.045em; line-height: 1.08; }
-.intro p { max-width: 540px; color: #71716b; font-size: 15px; line-height: 1.55; }
+.intro p { max-width: none; color: #71716b; font-size: 15px; line-height: 1.55; white-space: nowrap; }
 .research-composer { padding: 14px; border: 1px solid #d9d9d4; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 12px 36px rgb(0 0 0 / 6%); }
 .research-composer textarea { display: block; width: 100%; min-height: 112px; padding: 3px 4px; resize: none; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 16px; line-height: 1.5; }
 .research-composer textarea::placeholder, .follow-up-composer input::placeholder { color: #9a9a94; }
@@ -219,6 +219,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
   .prompt-bubble { width: 94%; }
   .welcome-stage { width: calc(100% - 28px); }
   .intro h1 { font-size: 31px; }
+  .intro p { max-width: 360px; white-space: normal; }
   .composer-controls { flex-wrap: wrap; }
   .launch-button { flex: 1; justify-content: center; }
   .scrim { position: fixed; padding: 0; }
