@@ -1,4 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <path fill="#8b6b48" d="M16 5h32l16 27-16 27H16L0 32 16 5Z"/>
-  <path fill="#fff" d="M21 18h24v7H29v5h14v7H29v11h-8V18Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#171817"/>
+  <g stroke="#614b35" stroke-width="0.9" stroke-linejoin="round">
+    <g class="boat boat-back" opacity="0.48" transform="translate(3 8)">
+      <path fill="#f4e6d1" d="M6 1v9H1.5L6 1Z"/>
+      <path fill="#8b6b48" d="M.5 11h11c-.8 3-2.7 4.5-5.5 4.5S1.3 14 .5 11Z"/>
+    </g>
+    <g class="boat boat-middle" opacity="0.72" transform="translate(9 7)">
+      <path fill="#f4e6d1" d="M6 1v9H1.5L6 1Z"/>
+      <path fill="#8b6b48" d="M.5 11h11c-.8 3-2.7 4.5-5.5 4.5S1.3 14 .5 11Z"/>
+    </g>
+    <g class="boat boat-front" transform="translate(15 6)">
+      <path fill="#f4e6d1" d="M6 1v9H1.5L6 1Z"/>
+      <path fill="#8b6b48" d="M.5 11h11c-.8 3-2.7 4.5-5.5 4.5S1.3 14 .5 11Z"/>
+    </g>
+  </g>
 </svg>

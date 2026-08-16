@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 
 const interfaceSource = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8')
 const interfaceStyles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8')
+const rootSource = readFileSync(new URL('./__root.tsx', import.meta.url), 'utf8')
+const faviconSource = readFileSync(new URL('../../public/favicon.svg', import.meta.url), 'utf8')
 
 describe('interface copy contract', () => {
   it('keeps eyebrow labels and uppercase transformations out of the product', () => {
@@ -32,6 +34,13 @@ describe('interface copy contract', () => {
     expect(interfaceSource).toContain('className="boat boat-front"')
     expect(interfaceSource).toContain('className="fleet-boat-mark"')
     expect(interfaceSource).toContain('aria-hidden="true"')
+  })
+
+  it('uses the three-boat Fleet mark as the browser favicon', () => {
+    expect(rootSource).toContain("href: '/favicon.svg'")
+    expect(rootSource).toContain("sizes: 'any'")
+    expect(faviconSource.match(/class="boat boat-/g)).toHaveLength(3)
+    expect(faviconSource).toContain('class="boat boat-front"')
   })
 
   it('keeps explicitly sized interface text at a readable minimum', () => {
