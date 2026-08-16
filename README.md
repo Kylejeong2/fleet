@@ -44,6 +44,7 @@ npm run test:e2e
 - [Providers and execution profiles](docs/providers.md)
 - [Local development](docs/local-development.md)
 - [Testing](docs/testing.md)
+- [Live verification](docs/live-verification.md)
 - [Operations and limits](docs/operations.md)
 
 ## Status

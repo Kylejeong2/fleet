@@ -1,10 +1,11 @@
 import { z } from 'zod'
+import { HttpUrlSchema } from '../../../lib/fleet-protocol'
 import type { ResearchToolCall, ResearchToolResult, ResearchTools } from '../ports'
 
 const SearchResponseSchema = z.object({
   results: z.array(
     z.object({
-      url: z.string().url(),
+      url: HttpUrlSchema,
       title: z.string(),
     }),
   ),
@@ -41,7 +42,7 @@ export class BrowserbaseResearchTools implements ResearchTools {
         })),
       }
     }
-    const url = z.string().url().parse(call.url)
+    const url = HttpUrlSchema.parse(call.url)
     const response = await this.#request('/fetch', {
       url,
       allowRedirects: true,

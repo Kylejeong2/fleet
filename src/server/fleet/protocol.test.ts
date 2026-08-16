@@ -3,6 +3,7 @@ import {
   createAgentId,
   createEventSeq,
   createRunId,
+  HttpUrlSchema,
   type FleetEvent,
   type RunSnapshot,
 } from '../../lib/fleet-protocol'
@@ -20,6 +21,14 @@ const acceptedEvent = (): Extract<FleetEvent, { kind: 'run.accepted' }> => ({
 })
 
 describe('Fleet reducer', () => {
+  it('accepts only HTTP and HTTPS research URLs', () => {
+    expect(HttpUrlSchema.parse('https://example.com/research')).toBe(
+      'https://example.com/research',
+    )
+    expect(() => HttpUrlSchema.parse('ftp://example.com/archive')).toThrow()
+    expect(() => HttpUrlSchema.parse('file:///etc/passwd')).toThrow()
+  })
+
   it('replays ordered events into a snapshot', () => {
     const accepted = acceptedEvent()
     const agentId = createAgentId(accepted.runId, 0)

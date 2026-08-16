@@ -66,7 +66,7 @@ interface Synthesizer {
 }
 ```
 
-`SailWorkerModel` calls the stable Sail Responses API with `deepseek-ai/DeepSeek-V4-Flash`. Sail responses do not stream. Fleet reports accurate activity around each background model turn and each local tool call. It never fabricates token deltas for a Sail worker.
+`SailWorkerModel` calls the stable Sail Responses API with `deepseek-ai/DeepSeek-V4-Flash`. Sail responses do not stream. Fleet reports accurate activity around each synchronous model turn and each local tool call. It never fabricates token deltas for a Sail worker. The coordinator itself remains outside the request lifecycle, so accepting a run does not wait for research to finish.
 
 `BrowserbaseResearchTools` calls Browserbase Search and Fetch. The adapter validates URLs, bounds fetched content, parses external JSON, and returns display-safe results. Fleet retries a Browserbase request only before the provider accepts it. An ambiguous failure becomes a visible failed tool event rather than a duplicate paid call.
 

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { HttpUrlSchema } from '../../../lib/fleet-protocol'
 import type { WorkerModel, WorkerResponse, WorkerTurn } from '../ports'
 
 const ResponseSchema = z.object({
@@ -21,7 +22,7 @@ const MessageSchema = z.object({
 })
 
 const SearchArgumentsSchema = z.object({ query: z.string().min(1).max(200) })
-const FetchArgumentsSchema = z.object({ url: z.string().url() })
+const FetchArgumentsSchema = z.object({ url: HttpUrlSchema })
 
 const sleep = (milliseconds: number, signal: AbortSignal): Promise<void> =>
   new Promise((resolve, reject) => {

@@ -18,6 +18,13 @@ export type ToolCallId = z.infer<typeof ToolCallIdSchema>
 export const EventSeqSchema = z.number().int().positive().brand<'EventSeq'>()
 export type EventSeq = z.infer<typeof EventSeqSchema>
 
+export const HttpUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
+    message: 'URL must use HTTP or HTTPS',
+  })
+
 export const parseRunId = (value: unknown): RunId => RunIdSchema.parse(value)
 export const createRunId = (): RunId => RunIdSchema.parse(crypto.randomUUID())
 export const createAgentId = (runId: RunId, index: number): AgentId =>
@@ -41,7 +48,7 @@ export type CreateRunInput = z.infer<typeof CreateRunInputSchema>
 
 const SearchResultSchema = z.object({
   title: z.string(),
-  url: z.string().url(),
+  url: HttpUrlSchema,
   snippet: z.string(),
 })
 export type SearchResult = z.infer<typeof SearchResultSchema>
@@ -64,7 +71,7 @@ const SucceededToolTraceSchema = z.object({
       z.object({ kind: z.literal('search'), results: z.array(SearchResultSchema) }),
       z.object({
         kind: z.literal('fetch'),
-        url: z.string().url(),
+        url: HttpUrlSchema,
         title: z.string(),
         text: z.string(),
       }),
