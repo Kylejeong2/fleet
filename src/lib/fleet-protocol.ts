@@ -21,7 +21,10 @@ export type EventSeq = z.infer<typeof EventSeqSchema>
 const isPublicHttpUrl = (value: string): boolean => {
   const url = new URL(value)
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return false
-  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  const hostname = url.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.+$/, '')
   if (
     hostname === 'localhost' ||
     hostname.endsWith('.localhost') ||
