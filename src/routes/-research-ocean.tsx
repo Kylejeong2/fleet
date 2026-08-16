@@ -63,7 +63,7 @@ export function ResearchOcean({
 
   const completed = snapshot?.agents.filter((agent) => agent.status === 'succeeded').length ?? 0
   const active = snapshot?.agents.filter((agent) => agent.status === 'running').length ?? 0
-  const sources = snapshot ? oceanSourceDomains(snapshot.agents).slice(0, 5) : []
+  const sources = snapshot ? oceanSources(snapshot.agents).slice(0, 5) : []
   const state = !snapshot
     ? 'ready'
     : snapshot.status === 'completed'
@@ -109,13 +109,23 @@ export function ResearchOcean({
       ) : null}
 
       {sources.length ? (
-        <div className="ocean-source-stream" aria-label="Live source domains">
-          {sources.map((domain, index) => (
-            <span key={domain} style={{ '--source-index': index } as CSSProperties}>
-              <i aria-hidden="true" />{displayDomain(domain)}
-            </span>
-          ))}
-        </div>
+        <details className="ocean-source-disclosure">
+          <summary>{sources.length} source {sources.length === 1 ? 'website' : 'websites'}</summary>
+          <div className="ocean-source-stream" aria-label="Live source websites">
+            {sources.map((source, index) => (
+              <a
+                href={source.url}
+                key={source.domain}
+                target="_blank"
+                rel="noreferrer"
+                title={source.url}
+                style={{ '--source-index': index } as CSSProperties}
+              >
+                {displayDomain(source.domain)}
+              </a>
+            ))}
+          </div>
+        </details>
       ) : null}
 
     </section>
@@ -410,8 +420,8 @@ function setBoatColor(boat: THREE.Group, color: number) {
   })
 }
 
-function oceanSourceDomains(agents: AgentSnapshot[]): string[] {
-  const domains = new Set<string>()
+function oceanSources(agents: AgentSnapshot[]): Array<{ domain: string; url: string }> {
+  const sources = new Map<string, string>()
   for (const agent of agents) {
     for (const trace of agent.trace) {
       if (trace.status !== 'succeeded') continue
@@ -420,14 +430,15 @@ function oceanSourceDomains(agents: AgentSnapshot[]): string[] {
         : [trace.result.url]
       for (const url of urls) {
         try {
-          domains.add(new URL(url).hostname.replace(/^www\./, ''))
+          const domain = new URL(url).hostname.replace(/^www\./, '')
+          if (!sources.has(domain)) sources.set(domain, url)
         } catch {
           // Public URLs are validated by the protocol; ignore malformed display values defensively.
         }
       }
     }
   }
-  return [...domains]
+  return [...sources].map(([domain, url]) => ({ domain, url }))
 }
 
 function displayDomain(domain: string): string {
