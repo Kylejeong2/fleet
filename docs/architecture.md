@@ -74,9 +74,9 @@ interface Synthesizer {
 
 ## Browser state
 
-TanStack Start renders the conversation rail, chat shell, and composer on the server. The initial page does not wait for a research run.
+TanStack Start renders the conversation shell, header, and composer on the server. The initial page does not wait for a research run.
 
-The route owns one active projection and replay cursor. Its SSE reader reduces typed events in order, ignores duplicates, and replaces the projection from the snapshot endpoint after a gap. The conversation rail receives the projection as data and does not open a second event stream.
+The route owns one active projection and replay cursor. Its SSE reader reduces typed events in order, ignores duplicates, and replaces the projection from the snapshot endpoint after a gap. The message surface receives the projection as data and does not open a second event stream.
 
 The route owns the current run, selected agent, and composer settings for this single-conversation release. The trace panel owns only its expanded tool cards. Agent animation derives from agent status. There is no second animation state to synchronize.
 

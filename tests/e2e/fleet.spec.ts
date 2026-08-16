@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test'
 const askFleet = async (page: Page, count = '6') => {
   await page.goto('/')
   await expect(page.locator('.app-shell')).toHaveAttribute('data-hydrated', 'true')
+  await expect(page.locator('.sidebar')).toHaveCount(0)
   await page.getByLabel('Research question').fill(
     'Compare the strongest approaches to reliable browser agent infrastructure.',
   )
@@ -55,11 +56,24 @@ test('keeps the mobile fleet inside the viewport', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: 'Research fleet' })).toBeVisible()
 })
 
+test('animates active robot rigs with Motion', async ({ page }) => {
+  await askFleet(page, '50')
+  const rig = page.locator('.agent-card.running .bot-rig').first()
+  await expect(rig).toBeVisible()
+  const before = await rig.evaluate((element) => getComputedStyle(element).transform)
+  await page.waitForTimeout(120)
+  const after = await rig.evaluate((element) => getComputedStyle(element).transform)
+  expect(after).not.toBe(before)
+})
+
 test('honors reduced motion', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await askFleet(page, '3')
-  const duration = await page.locator('.bot.active').first().evaluate((element) =>
-    Number.parseFloat(getComputedStyle(element).animationDuration),
-  )
-  expect(duration).toBeLessThanOrEqual(0.001)
+  const robot = page.locator('.bot').first()
+  await expect(robot).toHaveAttribute('data-reduced-motion', 'true')
+  const rig = robot.locator('.bot-rig')
+  const before = await rig.evaluate((element) => getComputedStyle(element).transform)
+  await page.waitForTimeout(250)
+  const after = await rig.evaluate((element) => getComputedStyle(element).transform)
+  expect(after).toBe(before)
 })

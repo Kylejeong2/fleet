@@ -41,6 +41,7 @@ npm run test:e2e
 - [Architecture](docs/architecture.md)
 - [HTTP API](docs/api.md)
 - [Event protocol](docs/events.md)
+- [Agent animation](docs/animation.md)
 - [Providers and execution profiles](docs/providers.md)
 - [Local development](docs/local-development.md)
 - [Testing](docs/testing.md)

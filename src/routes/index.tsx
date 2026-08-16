@@ -1,6 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { domAnimation, LazyMotion, useReducedMotion } from 'motion/react'
+import * as m from 'motion/react-m'
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -60,7 +63,14 @@ const agentNames = [
   'Claim checker',
 ]
 
-const botTones = ['blue', 'sand', 'mint', 'rose', 'lilac', 'slate'] as const
+const botPalettes = [
+  { shell: '#c9dcf5', shellLight: '#f4f8ff', accent: '#5579b3', accentSoft: '#d9e6f7', eye: '#25446f' },
+  { shell: '#ead7bd', shellLight: '#fff9f0', accent: '#a9773c', accentSoft: '#f1e2ce', eye: '#63431f' },
+  { shell: '#cbe5d2', shellLight: '#f3fff6', accent: '#4f8a62', accentSoft: '#dcefe1', eye: '#28543a' },
+  { shell: '#efd0d1', shellLight: '#fff7f7', accent: '#a96065', accentSoft: '#f5dfe0', eye: '#6b3438' },
+  { shell: '#ddcff0', shellLight: '#fbf7ff', accent: '#8061a4', accentSoft: '#eadff5', eye: '#4f346d' },
+  { shell: '#d6dce5', shellLight: '#f8faff', accent: '#65738a', accentSoft: '#e3e8ef', eye: '#384457' },
+] as const
 
 function FleetHome() {
   const [hydrated, setHydrated] = useState(false)
@@ -211,8 +221,8 @@ function FleetHome() {
   }
 
   return (
+    <LazyMotion features={domAnimation} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
-      <Sidebar snapshot={snapshot} />
       <section className="conversation" aria-label="Fleet research chat">
         <header className="conversation-header">
           <span className="fleet-glyph" aria-hidden="true">F</span>
@@ -283,42 +293,7 @@ function FleetHome() {
         />
       ) : null}
     </main>
-  )
-}
-
-function Sidebar({ snapshot }: { snapshot: RunSnapshot | null }) {
-  return (
-    <aside className="sidebar" aria-label="Research navigation">
-      <div className="window-row" aria-hidden="true">
-        <i className="window-dot red" />
-        <i className="window-dot amber" />
-        <i className="window-dot green" />
-        <span className="add-mark">+</span>
-      </div>
-      <div className="sidebar-search">
-        <SearchIcon />
-        Search
-      </div>
-      <nav className="thread-list" aria-label="Recent research">
-        <div className="thread active">
-          <span className="thread-avatar">F</span>
-          <span className="thread-copy">
-            <strong>Fleet research</strong>
-            <small>{snapshot ? runSummary(snapshot) : 'Ready for a new question'}</small>
-          </span>
-          <time>Now</time>
-        </div>
-        <div className="thread muted-thread" aria-hidden="true">
-          <span className="thread-avatar neutral">N</span>
-          <span className="thread-copy"><strong>New Bot</strong><small>Product notes and analysis</small></span>
-          <time>Thu</time>
-        </div>
-      </nav>
-      <div className="sidebar-foot">
-        <div><span className="round-icon">⌁</span>Tools</div>
-        <div><span className="account-avatar">K</span>Kyle Jeong</div>
-      </div>
-    </aside>
+    </LazyMotion>
   )
 }
 
@@ -548,22 +523,122 @@ function TracePanel({ agent, index }: { agent: AgentSnapshot | null; index: numb
 }
 
 function Bot({ index, active }: { index: number; active: boolean }) {
+  const prefersReducedMotion = useReducedMotion()
+  const gradientId = useId().replace(/:/g, '')
+  const palette = botPalettes[index % botPalettes.length] ?? botPalettes[0]
+  const duration = 1.7 + (index % 5) * 0.12
+  const isMoving = active && !prefersReducedMotion
+
   return (
-    <span className={`bot tone-${botTones[index % botTones.length]} ${active ? 'active' : ''}`} aria-hidden="true" style={{ '--bot-delay': `${-(index % 8) * 0.17}s` } as React.CSSProperties}>
-      <span className="bot-antenna" />
-      <span className="bot-head"><i className="eye left" /><i className="eye right" /><i className="mouth" /></span>
-      <span className="bot-body" />
-      <i className="bot-foot left" /><i className="bot-foot right" />
-    </span>
+    <m.svg
+      className={`bot ${active ? 'active' : ''}`}
+      data-reduced-motion={prefersReducedMotion ? 'true' : 'false'}
+      viewBox="0 0 52 56"
+      aria-hidden="true"
+      whileHover={prefersReducedMotion ? undefined : { scale: 1.09, rotate: index % 2 ? 2 : -2 }}
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={palette.shellLight} />
+          <stop offset="1" stopColor={palette.shell} />
+        </linearGradient>
+      </defs>
+      <m.g
+        className="bot-rig"
+        animate={isMoving ? { y: [0, -3.2, 0], rotate: [-0.8, 0.8, -0.8] } : { y: 0, rotate: 0 }}
+        transition={{ duration, repeat: isMoving ? Infinity : 0, ease: 'easeInOut', delay: -(index % 7) * 0.11 }}
+      >
+        <m.ellipse
+          className="bot-shadow"
+          cx="26"
+          cy="52"
+          rx="13"
+          ry="2.4"
+          animate={isMoving ? { scaleX: [1, 0.78, 1], opacity: [0.18, 0.08, 0.18] } : { scaleX: 1, opacity: 0.14 }}
+          transition={{ duration, repeat: isMoving ? Infinity : 0, ease: 'easeInOut' }}
+        />
+
+        <path className="bot-antenna-stem" d="M26 10V5" />
+        <m.circle
+          className="bot-antenna-light"
+          cx="26"
+          cy="4"
+          r="2.7"
+          fill={palette.accent}
+          animate={isMoving ? { opacity: [0.45, 1, 0.45], scale: [0.82, 1.18, 0.82] } : { opacity: 0.72, scale: 1 }}
+          transition={{ duration: 1.1 + (index % 3) * 0.15, repeat: isMoving ? Infinity : 0 }}
+        />
+
+        <m.path
+          className="bot-arm"
+          d="M11.5 32.5 6.5 38l3 5"
+          animate={isMoving ? { rotate: [0, -13, 7, 0] } : { rotate: 0 }}
+          transition={{ duration: 0.85, repeat: isMoving ? Infinity : 0, ease: 'easeInOut', delay: -(index % 4) * 0.09 }}
+        />
+        <m.path
+          className="bot-arm right"
+          d="m40.5 32.5 5 5.5-3 5"
+          animate={isMoving ? { rotate: [0, 12, -8, 0] } : { rotate: 0 }}
+          transition={{ duration: 0.85, repeat: isMoving ? Infinity : 0, ease: 'easeInOut', delay: -0.33 - (index % 3) * 0.08 }}
+        />
+
+        <rect className="bot-body" x="15" y="31" width="22" height="17" rx="6" fill={`url(#${gradientId})`} />
+        <path className="bot-body-shine" d="M19 35.5h14" />
+        <m.circle
+          className="bot-core"
+          cx="26"
+          cy="40"
+          r="3.2"
+          fill={palette.accent}
+          animate={isMoving ? { opacity: [0.55, 1, 0.55], scale: [0.82, 1.12, 0.82] } : { opacity: 0.72, scale: 1 }}
+          transition={{ duration: 1.25, repeat: isMoving ? Infinity : 0, delay: -(index % 5) * 0.12 }}
+        />
+        <path className="bot-leg" d="M20 47.5v4h-5" />
+        <path className="bot-leg right" d="M32 47.5v4h5" />
+
+        <circle className="bot-ear" cx="10" cy="23" r="3.2" fill={palette.accentSoft} />
+        <circle className="bot-ear right" cx="42" cy="23" r="3.2" fill={palette.accentSoft} />
+        <rect className="bot-head" x="11" y="11" width="30" height="24" rx="9" fill={`url(#${gradientId})`} />
+        <rect className="bot-face" x="15" y="16" width="22" height="13" rx="5" />
+        <m.g
+          className="bot-eyes"
+          animate={isMoving ? { x: [0, 1.8, -1.3, 0] } : { x: 0 }}
+          transition={{ duration: 2.35 + (index % 4) * 0.18, repeat: isMoving ? Infinity : 0, times: [0, 0.36, 0.72, 1] }}
+        >
+          <m.rect
+            x="19"
+            y="20"
+            width={index % 3 === 0 ? 4.8 : 3.6}
+            height="4"
+            rx="1.8"
+            fill={palette.eye}
+            animate={isMoving ? { scaleY: [1, 1, 0.18, 1] } : { scaleY: 1 }}
+            transition={{ duration: 2.8 + (index % 5) * 0.2, repeat: isMoving ? Infinity : 0, times: [0, 0.76, 0.8, 1] }}
+          />
+          <m.rect
+            x="29"
+            y="20"
+            width={index % 3 === 1 ? 4.8 : 3.6}
+            height="4"
+            rx="1.8"
+            fill={palette.eye}
+            animate={isMoving ? { scaleY: [1, 1, 0.18, 1] } : { scaleY: 1 }}
+            transition={{ duration: 2.8 + (index % 5) * 0.2, repeat: isMoving ? Infinity : 0, times: [0, 0.76, 0.8, 1] }}
+          />
+        </m.g>
+        <m.path
+          className="bot-mouth"
+          d={index % 4 === 0 ? 'M23 26.5h6' : index % 4 === 1 ? 'M23 26.5q3 2 6 0' : 'M22.5 26.5h2l1-1.5 1.5 3 1-1.5h2'}
+          animate={isMoving && index % 4 > 1 ? { opacity: [0.45, 1, 0.45] } : { opacity: 0.82 }}
+          transition={{ duration: 0.72, repeat: isMoving ? Infinity : 0 }}
+        />
+      </m.g>
+    </m.svg>
   )
 }
 
 function FleetMark() {
   return <span className="fleet-mark" aria-hidden="true"><i /><i /><i /></span>
-}
-
-function SearchIcon() {
-  return <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8" cy="8" r="5" /><path d="m12 12 4 4" /></svg>
 }
 
 function TypingDots() {
@@ -609,12 +684,6 @@ function responseTitle(snapshot: RunSnapshot): string {
   if (snapshot.status === 'failed') return 'Research stopped'
   if (snapshot.status === 'synthesizing') return 'Synthesizing the evidence'
   return `Researching with ${snapshot.agentCount} agents`
-}
-
-function runSummary(snapshot: RunSnapshot): string {
-  if (snapshot.status === 'completed') return 'Research answer ready'
-  if (snapshot.status === 'failed') return 'Research needs attention'
-  return `${snapshot.agents.filter((agent) => agent.status === 'running').length} agents working`
 }
 
 function displayStatus(status: string): string {
