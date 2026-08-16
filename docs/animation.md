@@ -2,6 +2,17 @@
 
 Fleet renders each researcher as a small stateful SVG character animated with Motion for React.
 
+## Research ocean
+
+The homepage and live conversation also render the fleet as a Three.js research ocean. The ocean is a lazy-loaded deep module with a small React interface: it receives the current run snapshot and the existing open-trace callback, then owns the WebGL scene and interaction model behind that seam.
+
+- A vertex shader displaces the water surface while the fragment shader layers depth, crest light, and a moving scan shimmer.
+- Territory beacons and quadratic routes place up to 50 visible boats across primary sources, history, contradictions, benchmarks, economics, and edge cases.
+- Planned boats remain at the orchestrator, running boats accelerate outward, overload retries turn red, and successful boats return toward the synthesis point.
+- A raycaster and matching DOM targets let pointer and keyboard users open the real agent trace from a boat.
+- The scene uses capped device pixel ratio, disposes all GPU resources on unmount, and stops camera/water motion when reduced motion is requested.
+- Three.js is split from the main route chunk and loaded behind a dark ocean fallback so the existing research interface does not absorb the rendering runtime.
+
 ## Why Motion
 
 Three current runtimes were considered:
