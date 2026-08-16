@@ -1,8 +1,8 @@
 # Fleet
 
-Fleet turns one difficult question into a coordinated research run. A configurable fleet of DeepSeek V4 Flash workers explores separate angles with Browserbase Search and Fetch. GPT-5.6 Sol then synthesizes their evidence into one answer while the interface exposes every agent, tool call, and failure.
+Fleet creates subagents to truly perform deep research any prompt. A configurable fleet of subagent workers explore separate angles of a query equipped with Browserbase Search and Fetch. An orchestrator then synthesizes their evidence into one answer while the interface exposes every agent, tool call, and failure.
 
-The product is built around a simple idea: when inference is cheap enough, breadth becomes a feature. Fleet spends additional tokens on independent perspectives, source checking, and synthesis instead of hiding the work behind a single progress spinner.
+When inference is cheap enough, breadth becomes a feature. Fleet spends additional tokens on independent perspectives, source checking, and synthesis instead of hiding the work behind a single progress spinner.
 
 ## What is included
 
