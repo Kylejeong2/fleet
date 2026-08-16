@@ -73,4 +73,16 @@ describe('interface copy contract', () => {
     expect(interfaceSource).toContain('tabIndex={0}')
     expect(interfaceStyles).toContain('grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr)')
   })
+
+  it('makes the research ocean a functional view of live fleet state', () => {
+    expect(interfaceSource).toContain('One question. An entire fleet of intelligence.')
+    expect(interfaceSource).toContain('Send 100 researchers in every direction')
+    expect(interfaceSource).toContain('<ResearchOcean snapshot={snapshot} onOpenAgent={onOpenAgent} />')
+    expect(interfaceSource).toContain('Math.min(snapshot.agentCount, 50)')
+    expect(interfaceSource).toContain("agent?.activity.toLowerCase().includes('retry')")
+    expect(interfaceSource).toContain('onOpenAgent?.(agent.id)')
+    expect(interfaceSource).toContain('oceanSourceDomains(snapshot.agents)')
+    expect(interfaceStyles).toContain('.ocean-route.succeeded')
+    expect(interfaceStyles).toContain('.ocean-route.failed, .ocean-route.retrying')
+  })
 })

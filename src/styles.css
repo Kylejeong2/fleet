@@ -61,12 +61,12 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .fleet-mark i:nth-child(2) { top: 0; right: 0; }
 .fleet-mark i:nth-child(3) { bottom: 0; left: 5px; }
 
-.welcome-stage { display: grid; width: min(720px, calc(100% - 44px)); margin: auto; place-content: center; gap: 26px; transform: translateY(-30px); }
+.welcome-stage { display: grid; width: min(960px, calc(100% - 44px)); margin: auto; place-content: center; gap: 20px; transform: translateY(-8px); }
 .intro { display: grid; justify-items: center; gap: 10px; text-align: center; }
 .intro h1, .intro p { margin: 0; }
-.intro h1 { font-size: clamp(33px, 4.1vw, 46px); font-weight: 520; letter-spacing: -.045em; line-height: 1.08; }
-.intro p { max-width: none; color: #71716b; font-size: 17px; line-height: 1.55; white-space: nowrap; }
-.research-composer { padding: 14px; border: 1px solid #d9d9d4; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 12px 36px rgb(0 0 0 / 6%); }
+.intro h1 { font-size: clamp(34px, 4.4vw, 54px); font-weight: 520; letter-spacing: -.05em; line-height: 1.02; text-wrap: balance; }
+.intro p { max-width: 760px; color: #71716b; font-size: 17px; line-height: 1.5; text-wrap: balance; }
+.research-composer { position: relative; z-index: 2; width: min(720px, 100%); margin: 0 auto; padding: 14px; border: 1px solid #d9d9d4; border-radius: 18px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 12px 36px rgb(0 0 0 / 6%); }
 .research-composer textarea { display: block; width: 100%; min-height: 112px; padding: 3px 4px; resize: none; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 18px; line-height: 1.5; }
 .research-composer textarea::placeholder, .follow-up-composer input::placeholder { color: #9a9a94; }
 .composer-controls { display: flex; align-items: center; gap: 7px; margin-top: 10px; }
@@ -87,6 +87,54 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 @keyframes select-open { from { opacity: 0; transform: translateY(-2px) scale(.985); } }
 .launch-button { display: flex; height: 36px; align-items: center; gap: 8px; margin-left: auto; padding: 0 12px; border: 0; border-radius: 9px; background: #1c1d1b; color: #fff; cursor: pointer; font-size: 14px; white-space: nowrap; }
 .launch-button:disabled, .follow-up-composer button:disabled { cursor: not-allowed; opacity: .42; }
+
+.research-ocean { position: relative; width: 100%; height: 250px; overflow: hidden; border: 1px solid #d8e1df; border-radius: 22px; background: radial-gradient(circle at 50% 55%, rgb(67 147 143 / 12%), transparent 32%), linear-gradient(180deg, #f8fbfa 0%, #edf5f3 100%); color: #35948c; box-shadow: inset 0 1px rgb(255 255 255 / 80%), 0 18px 45px rgb(45 95 91 / 9%); isolation: isolate; }
+.welcome-stage .research-ocean { margin-top: -7px; }
+.ocean-grid { position: absolute; inset: 0; z-index: -1; opacity: .45; background-image: linear-gradient(rgb(79 130 126 / 7%) 1px, transparent 1px), linear-gradient(90deg, rgb(79 130 126 / 7%) 1px, transparent 1px); background-size: 34px 34px; mask-image: radial-gradient(circle at center, #000 15%, transparent 78%); }
+.ocean-grid::after { position: absolute; inset: 0; background: repeating-radial-gradient(ellipse at center, transparent 0 34px, rgb(63 124 120 / 7%) 35px 36px); content: ""; }
+.ocean-glow { position: absolute; top: 52%; left: 50%; width: 190px; height: 130px; border-radius: 50%; background: rgb(76 179 170 / 11%); filter: blur(28px); transform: translate(-50%, -50%); }
+.ocean-map { display: block; width: 100%; height: 100%; overflow: visible; }
+.ocean-territory > circle:first-child { fill: currentColor; }
+.ocean-territory .territory-ring { fill: none; stroke: currentColor; stroke-opacity: .2; stroke-width: 1; }
+.ocean-territory text { fill: #4f716e; font-size: 12px; font-weight: 620; letter-spacing: .01em; }
+.center-radar { color: #47a39b; }
+.center-ring { fill: none; stroke: currentColor; stroke-opacity: .13; stroke-width: 1; }
+.ring-one { animation: ocean-sonar 3.2s ease-out infinite; }
+.ring-two { animation: ocean-sonar 3.2s 1.6s ease-out infinite; }
+.ocean-route { fill: none; stroke: #7bb8b2; stroke-dasharray: 3 5; stroke-linecap: round; stroke-opacity: .3; stroke-width: 1; animation: route-draw .85s var(--route-delay, 0s) both ease-out; }
+.ocean-route.running { stroke: #3ea49b; stroke-dasharray: 2 4; stroke-opacity: .75; animation: route-flow 1.4s linear infinite; }
+.ocean-route.succeeded { stroke: #68bdb4; stroke-dasharray: none; stroke-opacity: .78; stroke-width: 1.35; }
+.ocean-route.failed, .ocean-route.retrying { stroke: var(--red); stroke-dasharray: 2 4; stroke-opacity: .72; animation: route-flow .8s linear infinite reverse; }
+.ocean-agent { outline: none; transform-box: fill-box; transform-origin: center; }
+.ocean-agent.interactive { cursor: pointer; }
+.ocean-agent.interactive:focus-visible .tiny-hull { stroke: #176c67; stroke-width: 2; }
+.ocean-agent.running .tiny-boat { animation: tiny-boat-bob 1.15s ease-in-out infinite; }
+.ocean-agent.retrying .tiny-boat { animation: retry-boat .38s ease-in-out infinite alternate; }
+.tiny-sail { fill: #e8fffc; stroke: #257f78; stroke-width: .8; }
+.tiny-sail-secondary { fill: #a9ddd8; stroke: #257f78; stroke-width: .8; }
+.tiny-hull { fill: #287c75; stroke: #175e59; stroke-width: .8; }
+.tiny-cargo { fill: #fffbd4; stroke: #7e7848; stroke-width: .55; }
+.tiny-boat.failed .tiny-sail, .tiny-boat.failed .tiny-sail-secondary { fill: #ffd8d4; stroke: #a23a34; }
+.tiny-boat.failed .tiny-hull { fill: var(--red); stroke: #8d302a; }
+.tiny-boat.complete { filter: drop-shadow(0 0 4px rgb(255 243 160 / 75%)); }
+.source-card { animation: source-arrive .4s ease-out both; }
+.source-card rect { fill: rgb(255 255 253 / 94%); stroke: #9bc4c0; stroke-width: .8; }
+.source-card circle { fill: #4ca89f; }
+.source-card text { max-width: 64px; overflow: hidden; fill: #4b6663; font-size: 12px; }
+.ocean-status { position: absolute; right: 14px; bottom: 11px; left: 14px; display: flex; align-items: center; justify-content: space-between; color: #58736f; font-size: 12px; }
+.ocean-status span { display: flex; align-items: center; gap: 7px; }
+.status-pulse { width: 6px; height: 6px; border-radius: 50%; background: #45a99f; box-shadow: 0 0 0 5px rgb(69 169 159 / 10%); animation: ocean-pulse 1.8s ease-in-out infinite; }
+.research-ocean.complete { height: 190px; background: radial-gradient(circle at 50% 70%, rgb(220 185 71 / 10%), transparent 28%), linear-gradient(180deg, #f8fbfa 0%, #edf5f3 100%); transition: height .5s ease; }
+.research-ocean.complete .ocean-map { transform: translateY(-25px); }
+.response .research-ocean { height: 224px; margin: 4px 0 18px; }
+.response .research-ocean.complete { height: 154px; }
+@keyframes ocean-sonar { 0% { opacity: 0; transform: scale(.55); transform-origin: 380px 140px; } 40% { opacity: 1; } 100% { opacity: 0; transform: scale(1.7); transform-origin: 380px 140px; } }
+@keyframes ocean-pulse { 50% { opacity: .55; box-shadow: 0 0 0 8px rgb(69 169 159 / 5%); } }
+@keyframes route-draw { from { stroke-dasharray: 0 400; } to { stroke-dasharray: 3 5; } }
+@keyframes route-flow { to { stroke-dashoffset: -12; } }
+@keyframes tiny-boat-bob { 50% { transform: translateY(-2px) rotate(2deg); } }
+@keyframes retry-boat { to { opacity: .45; transform: translateX(2px) rotate(4deg); } }
+@keyframes source-arrive { from { opacity: 0; transform: translateY(5px); } }
 
 .messages { overflow: auto; overscroll-behavior-y: contain; padding: 26px var(--chat-gutter) 34px; scrollbar-color: #b9bbb6 transparent; scrollbar-gutter: stable; scrollbar-width: thin; }
 .messages::-webkit-scrollbar { width: 10px; }
@@ -349,6 +397,11 @@ details[open] > summary .reasoning-chevron { transform: rotate(180deg); }
 :root[data-theme="dark"] .trace-foot { color: #9a9d96; }
 :root[data-theme="dark"] .not-found { background: var(--panel); }
 :root[data-theme="dark"] .not-found a { color: #b9bcb6; }
+:root[data-theme="dark"] .research-ocean { border-color: #294945; background: radial-gradient(circle at 50% 55%, rgb(52 151 143 / 16%), transparent 34%), linear-gradient(180deg, #172321 0%, #111a19 100%); color: #51b8ae; box-shadow: inset 0 1px rgb(255 255 255 / 3%), 0 18px 50px rgb(0 0 0 / 24%); }
+:root[data-theme="dark"] .ocean-territory text { fill: #8db6b2; }
+:root[data-theme="dark"] .ocean-status { color: #8baca8; }
+:root[data-theme="dark"] .source-card rect { fill: rgb(24 36 34 / 94%); stroke: #426c68; }
+:root[data-theme="dark"] .source-card text { fill: #a6c3c0; }
 
 @media (max-width: 980px) {
   .fleet-dialog { grid-template-columns: minmax(0, 1fr) 300px; }

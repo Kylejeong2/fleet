@@ -96,7 +96,7 @@ const botPalettes = [
 function FleetHome() {
   const [hydrated, setHydrated] = useState(false)
   const [question, setQuestion] = useState('')
-  const [agentCount, setAgentCount] = useState(12)
+  const [agentCount, setAgentCount] = useState(50)
   const [snapshot, setSnapshot] = useState<RunSnapshot | null>(null)
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [fleetOpen, setFleetOpen] = useState(false)
@@ -389,8 +389,8 @@ function WelcomeComposer(props: {
   return (
     <section className="welcome-stage" aria-labelledby="research-heading">
       <div className="intro">
-        <h1 id="research-heading">What should the fleet investigate?</h1>
-        <p>Send parallel researchers across the problem, then bring the evidence back into one answer.</p>
+        <h1 id="research-heading">One question. An entire fleet of intelligence.</h1>
+        <p>Send 100 researchers in every direction, then synthesize what they find into one cited answer.</p>
       </div>
       <form className="research-composer" onSubmit={props.onSubmit}>
         <label className="sr-only" htmlFor="research-question">Research question</label>
@@ -429,6 +429,7 @@ function WelcomeComposer(props: {
           </button>
         </div>
       </form>
+      <ResearchOcean />
     </section>
   )
 }
@@ -518,6 +519,7 @@ function ResearchConversation({
             <span>{responseTitle(snapshot)}</span>
             {snapshot.status === 'running' || snapshot.status === 'synthesizing' ? <TypingDots /> : null}
           </header>
+          <ResearchOcean snapshot={snapshot} onOpenAgent={onOpenAgent} />
           {answer ? null : <ResearchProgress snapshot={snapshot} />}
           <ResearchActivity snapshot={snapshot} onOpenAgent={onOpenAgent} />
           {answer ? <AnswerText text={answer} onOpenAgent={onOpenAgent} /> : null}
@@ -526,6 +528,162 @@ function ResearchConversation({
       </div>
     </div>
   )
+}
+
+const researchTerritories = [
+  { label: 'Primary sources', x: 120, y: 50 },
+  { label: 'History', x: 282, y: 29 },
+  { label: 'Contradictions', x: 488, y: 29 },
+  { label: 'Benchmarks', x: 650, y: 50 },
+  { label: 'Economics', x: 680, y: 204 },
+  { label: 'Edge cases', x: 90, y: 204 },
+] as const
+
+function ResearchOcean({
+  snapshot,
+  onOpenAgent,
+}: {
+  snapshot?: RunSnapshot
+  onOpenAgent?: (agentId: string) => void
+}) {
+  const prefersReducedMotion = useReducedMotion()
+  const visibleCount = snapshot ? Math.min(snapshot.agentCount, 50) : 0
+  const agents = Array.from({ length: visibleCount }, (_, index) => snapshot?.agents[index])
+  const completed = snapshot?.agents.filter((agent) => agent.status === 'succeeded').length ?? 0
+  const active = snapshot?.agents.filter((agent) => agent.status === 'running').length ?? 0
+  const sources = snapshot ? oceanSourceDomains(snapshot.agents).slice(0, 4) : []
+  const state = !snapshot
+    ? 'ready'
+    : snapshot.status === 'completed'
+      ? 'complete'
+      : snapshot.status === 'synthesizing'
+        ? 'synthesizing'
+        : 'researching'
+
+  return (
+    <section
+      className={`research-ocean ${state}`}
+      aria-label={snapshot ? `Research map: ${active} agents active and ${completed} complete` : 'Research territories preview'}
+    >
+      <div className="ocean-grid" aria-hidden="true" />
+      <div className="ocean-glow" aria-hidden="true" />
+      <svg className="ocean-map" viewBox="0 0 760 250" role="group" aria-label="Agents crossing a map of research territories">
+        <defs>
+          <radialGradient id="ocean-center-glow">
+            <stop offset="0" stopColor="currentColor" stopOpacity=".24" />
+            <stop offset="1" stopColor="currentColor" stopOpacity="0" />
+          </radialGradient>
+          <filter id="ocean-boat-glow" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="2.8" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+
+        {researchTerritories.map((territory) => (
+          <g className="ocean-territory" key={territory.label} transform={`translate(${territory.x} ${territory.y})`}>
+            <circle r="3" />
+            <circle className="territory-ring" r="10" />
+            <text y="-15" textAnchor="middle">{territory.label}</text>
+          </g>
+        ))}
+
+        <circle className="center-radar" cx="380" cy="140" r="76" fill="url(#ocean-center-glow)" />
+        <circle className="center-ring ring-one" cx="380" cy="140" r="31" />
+        <circle className="center-ring ring-two" cx="380" cy="140" r="54" />
+
+        {snapshot ? agents.map((agent, index) => {
+          const territory = researchTerritories[index % researchTerritories.length]!
+          const spread = ((Math.floor(index / researchTerritories.length) % 7) - 3) * 7
+          const endX = territory.x + (index % 2 ? spread : -spread)
+          const endY = territory.y + 18 + ((index * 11) % 25)
+          const controlX = 380 + (endX - 380) * .47 + ((index % 5) - 2) * 15
+          const controlY = 140 + (endY - 140) * .23 - 32 + (index % 3) * 18
+          const route = `M380 140 Q${controlX} ${controlY} ${endX} ${endY}`
+          const status = agent?.status ?? 'planned'
+          const retrying = status === 'running' && agent?.activity.toLowerCase().includes('retry')
+          const returning = status === 'succeeded'
+          const failed = status === 'failed'
+          const boatX = returning ? 380 + ((index % 9) - 4) * 5 : status === 'planned' ? 380 : endX
+          const boatY = returning ? 149 + (index % 4) * 5 : status === 'planned' ? 140 : endY
+          const delay = (index % 10) * .055
+          return (
+            <g key={agent?.id ?? `planned-${index}`}>
+              <path className={`ocean-route ${status} ${retrying ? 'retrying' : ''}`} d={route} style={{ '--route-delay': `${delay}s` } as React.CSSProperties} />
+              <m.g
+                className={`ocean-agent ${status} ${retrying ? 'retrying' : ''} ${agent ? 'interactive' : ''}`}
+                initial={prefersReducedMotion ? false : { x: 380, y: 140, scale: .45, opacity: 0 }}
+                animate={{ x: boatX, y: boatY, scale: returning ? .78 : .66, opacity: status === 'planned' ? .3 : 1 }}
+                transition={{ duration: prefersReducedMotion ? 0 : returning ? 1.1 : .75, delay: prefersReducedMotion ? 0 : delay, ease: 'easeOut' }}
+                role={agent ? 'button' : undefined}
+                tabIndex={agent ? 0 : undefined}
+                aria-label={agent ? `Open ${agentNames[index % agentNames.length]} trace, ${displayStatus(agent.status)}` : undefined}
+                onClick={() => agent && onOpenAgent?.(agent.id)}
+                onKeyDown={(event) => {
+                  if (agent && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault()
+                    onOpenAgent?.(agent.id)
+                  }
+                }}
+              >
+                <TinyBoat failed={failed || retrying} complete={returning} />
+              </m.g>
+            </g>
+          )
+        }) : <g transform="translate(380 140) scale(1.1)"><TinyBoat /></g>}
+
+        {sources.map((domain, index) => (
+          <g className="source-card" key={domain} transform={`translate(${230 + index * 100} ${184 + (index % 2) * 26})`}>
+            <rect x="-44" y="-12" width="88" height="24" rx="6" />
+            <circle cx="-32" r="2.5" />
+            <text x="-24" y="4">{displayDomain(domain)}</text>
+          </g>
+        ))}
+      </svg>
+      <div className="ocean-status" aria-live="polite">
+        {snapshot ? (
+          <>
+            <span><i className="status-pulse" />{state === 'complete' ? 'Synthesis complete' : state === 'synthesizing' ? 'Braiding evidence' : 'Fleet underway'}</span>
+            <span>{completed} returned · {active} exploring · {sources.length} live domains</span>
+          </>
+        ) : <span><i className="status-pulse" />Orchestrator ready to chart the research map</span>}
+      </div>
+    </section>
+  )
+}
+
+function TinyBoat({ failed = false, complete = false }: { failed?: boolean; complete?: boolean }) {
+  return (
+    <g className={`tiny-boat ${failed ? 'failed' : ''} ${complete ? 'complete' : ''}`} filter="url(#ocean-boat-glow)">
+      <path className="tiny-sail" d="M0-9V3h-8L0-9Z" />
+      <path className="tiny-sail-secondary" d="M2-6v9h6L2-6Z" />
+      <path className="tiny-hull" d="M-10 5h20c-1.5 5-4.8 7-10 7S-8.5 10-10 5Z" />
+      {complete ? <rect className="tiny-cargo" x="-4" y="1" width="8" height="5" rx="1" /> : null}
+    </g>
+  )
+}
+
+function oceanSourceDomains(agents: AgentSnapshot[]): string[] {
+  const domains = new Set<string>()
+  for (const agent of agents) {
+    for (const trace of agent.trace) {
+      if (trace.status !== 'succeeded') continue
+      const urls = trace.result.kind === 'search'
+        ? trace.result.results.map((result) => result.url)
+        : [trace.result.url]
+      for (const url of urls) {
+        try {
+          domains.add(new URL(url).hostname.replace(/^www\./, ''))
+        } catch {
+          // URLs are protocol-validated; ignore a malformed display value defensively.
+        }
+      }
+    }
+  }
+  return [...domains]
+}
+
+function displayDomain(domain: string): string {
+  return domain.length > 13 ? `${domain.slice(0, 12)}…` : domain
 }
 
 function FleetDialog(props: {
