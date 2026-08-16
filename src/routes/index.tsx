@@ -491,10 +491,6 @@ function FleetDialog(props: {
               />
             )) : <AgentSkeletons count={Math.min(props.snapshot.agentCount, 12)} />}
           </div>
-          <footer className="fleet-foot">
-            <div><strong>{props.snapshot.agentCount} {props.snapshot.agentCount === 1 ? 'agent' : 'agents'}, one shared brief</strong><span>Each worker keeps an isolated trace</span></div>
-            <span className={`run-state ${props.snapshot.status}`}>{displayStatus(props.snapshot.status)}</span>
-          </footer>
         </div>
         <TracePanel agent={props.selectedAgent} index={Math.max(0, props.snapshot.agents.indexOf(props.selectedAgent!))} />
       </section>
