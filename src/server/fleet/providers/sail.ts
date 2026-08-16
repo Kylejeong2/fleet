@@ -4,21 +4,20 @@ import type { WorkerModel, WorkerResponse, WorkerTurn } from '../ports'
 const ResponseSchema = z.object({
   id: z.string(),
   status: z.enum(['queued', 'in_progress', 'completed', 'failed', 'cancelled']),
-  output: z.array(
-    z.union([
-      z.object({
-        type: z.literal('function_call'),
-        name: z.enum(['search', 'fetch']),
-        arguments: z.string(),
-      }),
-      z.object({
-        type: z.literal('message'),
-        content: z.array(
-          z.object({ type: z.literal('output_text'), text: z.string() }).passthrough(),
-        ),
-      }),
-    ]),
-  ).default([]),
+  output: z.array(z.unknown()).default([]),
+})
+
+const FunctionCallSchema = z.object({
+  type: z.literal('function_call'),
+  name: z.enum(['search', 'fetch']),
+  arguments: z.string(),
+})
+
+const MessageSchema = z.object({
+  type: z.literal('message'),
+  content: z.array(
+    z.object({ type: z.literal('output_text'), text: z.string() }).passthrough(),
+  ),
 })
 
 const SearchArgumentsSchema = z.object({ query: z.string().min(1).max(200) })
@@ -50,13 +49,10 @@ export class SailWorkerModel implements WorkerModel {
       headers: {
         authorization: `Bearer ${this.apiKey}`,
         'content-type': 'application/json',
-        'idempotency-key': `${turn.agentId}:${turn.history.length}`,
       },
       body: JSON.stringify({
         model: this.model,
-        background: true,
         max_output_tokens: 2_000,
-        metadata: { completion_window: 'asap' },
         input: this.#prompt(turn),
         tools: [
           {
@@ -101,16 +97,18 @@ export class SailWorkerModel implements WorkerModel {
     }
     if (payload.status !== 'completed') throw new Error(`Sail response ended as ${payload.status}`)
     for (const item of payload.output) {
-      if (item.type !== 'function_call') continue
-      const parsedArguments: unknown = JSON.parse(item.arguments)
-      if (item.name === 'search') {
+      const functionCall = FunctionCallSchema.safeParse(item)
+      if (!functionCall.success) continue
+      const parsedArguments: unknown = JSON.parse(functionCall.data.arguments)
+      if (functionCall.data.name === 'search') {
         return { kind: 'tool-call', call: { kind: 'search', ...SearchArgumentsSchema.parse(parsedArguments) } }
       }
       return { kind: 'tool-call', call: { kind: 'fetch', ...FetchArgumentsSchema.parse(parsedArguments) } }
     }
     const finding = payload.output
-      .filter((item) => item.type === 'message')
-      .flatMap((item) => item.content)
+      .map((item) => MessageSchema.safeParse(item))
+      .filter((item) => item.success)
+      .flatMap((item) => item.data.content)
       .map((content) => content.text)
       .join('')
       .trim()

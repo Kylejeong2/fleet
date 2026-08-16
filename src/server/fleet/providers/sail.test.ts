@@ -1,0 +1,45 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createAgentId, createRunId } from '../../../lib/fleet-protocol'
+import { SailWorkerModel } from './sail'
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe('SailWorkerModel', () => {
+  it('uses the synchronous shape supported by ASAP-only models and ignores reasoning items', async () => {
+    const request = vi.fn(async (_input: string | URL | Request, init?: RequestInit) =>
+      Response.json({
+        id: 'response-1',
+        status: 'completed',
+        output: [
+          { type: 'reasoning', content: [{ type: 'reasoning_text', text: 'Thinking' }] },
+          {
+            type: 'function_call',
+            name: 'search',
+            arguments: JSON.stringify({ query: 'Sail Research inference' }),
+          },
+        ],
+      }),
+    )
+    vi.stubGlobal('fetch', request)
+
+    const runId = createRunId()
+    const result = await new SailWorkerModel('test-key').respond(
+      {
+        question: 'What does Sail build?',
+        objective: 'Find primary sources',
+        agentId: createAgentId(runId, 0),
+        history: [],
+      },
+      new AbortController().signal,
+    )
+
+    expect(result).toEqual({
+      kind: 'tool-call',
+      call: { kind: 'search', query: 'Sail Research inference' },
+    })
+    const body = JSON.parse(String(request.mock.calls[0]?.[1]?.body)) as Record<string, unknown>
+    expect(body).not.toHaveProperty('background')
+    expect(body).not.toHaveProperty('metadata')
+    expect(request.mock.calls[0]?.[1]?.headers).not.toHaveProperty('idempotency-key')
+  })
+})
