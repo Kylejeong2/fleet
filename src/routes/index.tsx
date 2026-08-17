@@ -330,7 +330,6 @@ function FleetHome() {
           {snapshot ? (
             <span className="run-meta">
               {snapshot.agentCount} {snapshot.agentCount === 1 ? 'agent' : 'agents'}
-              <i className={`status-light ${snapshot.status}`} aria-hidden="true" />
             </span>
           ) : null}
           <div className="header-actions">

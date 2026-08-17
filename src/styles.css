@@ -51,9 +51,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .conversation-title { display: flex; height: 21px; flex: 0 0 auto; align-items: center; font-size: 16px; font-weight: 620; line-height: 1; white-space: nowrap; }
 .header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; margin-left: auto; }
 .run-meta { display: flex; height: 21px; flex: 0 0 auto; align-items: center; gap: 7px; color: var(--muted); font-size: 14px; line-height: 1; white-space: nowrap; }
-.status-light { display: block; width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgb(48 164 108 / 12%); }
-.status-light.completed { background: #878983; box-shadow: none; }
-.status-light.failed { background: var(--red); box-shadow: none; }
 .view-fleet-button { display: flex; height: 30px; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid #cfcfcb; border-radius: 7px; background: #fff; box-shadow: 0 1px 1px rgb(0 0 0 / 4%); cursor: pointer; white-space: nowrap; }
 .view-fleet-button:hover { background: var(--wash); }
 .theme-toggle { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid #cfcfcb; border-radius: 7px; background: #fff; color: #555651; cursor: pointer; transition: border-color .14s, background .14s, color .14s; }
