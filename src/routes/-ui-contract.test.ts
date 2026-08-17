@@ -74,6 +74,7 @@ describe('interface copy contract', () => {
     expect(interfaceSource).not.toContain('className="main-agent-stream"')
     expect(interfaceSource).toContain('<AgentTimeline agent={props.agent} compact />')
     expect(interfaceSource).toContain('<AgentTimeline agent={agent} />')
+    expect(interfaceSource).not.toContain('Chronological trace')
     expect(interfaceSource).toContain('<Markdown remarkPlugins={[remarkGfm]}>{agent.finding}</Markdown>')
     expect(interfaceSource).toContain('className="bot-sailor-hat"')
     expect(interfaceSource).toContain("if (event.deltaY < 0) onBreakAutoScroll()")

@@ -306,7 +306,6 @@ details[open] > summary .reasoning-chevron { transform: rotate(180deg); }
 .trace-label { margin: 14px 0 8px; color: #858784; font-size: 14px; }
 .trace-objective { margin: 0; padding-left: 11px; border-left: 2px solid #bdc0bb; color: #4f524e; font-size: 15px; line-height: 1.5; }
 .trace-events { overflow: auto; padding: 10px 14px 20px; }
-.tool-activity-label { margin-top: 0; }
 .tool-icon { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 7px; background: #ededeb; font-size: 14px; }
 .empty-trace, .empty-agent { color: var(--muted); font-size: 14px; line-height: 1.5; }
 .empty-agent { padding: 16px; }

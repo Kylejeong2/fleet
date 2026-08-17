@@ -903,7 +903,6 @@ function TracePanel({ agent, index }: { agent: AgentSnapshot | null; index: numb
             <p className="trace-objective">{agent.objective}</p>
           </div>
           <div className="trace-events">
-            <div className="trace-label tool-activity-label">Chronological trace</div>
             <AgentTimeline agent={agent} />
             {agent.finding ? (
               <>
