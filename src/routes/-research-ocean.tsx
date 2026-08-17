@@ -151,7 +151,7 @@ function useThreeOcean(
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = hero ? 1.16 : 1.26
-    renderer.setClearColor(0x020811, 1)
+    renderer.setClearColor(0x000103, 1)
 
     const scene = new THREE.Scene()
     scene.fog = new THREE.FogExp2(0x04121b, hero ? .026 : .034)
@@ -194,6 +194,29 @@ function useThreeOcean(
     water.rotation.x = -Math.PI / 2
     water.position.set(0, -1.15, -4.8)
     scene.add(water)
+
+    const dock = hero ? null : createHarborDock()
+    if (dock) scene.add(dock)
+
+    const destinationPins: THREE.Group[] = []
+    if (!hero) {
+      const visibleDestinations = Math.min(boatCount, territories.length)
+      for (let index = 0; index < visibleDestinations; index += 1) {
+        const territory = territories[index]!
+        const outward = territory.world.clone().setY(0).normalize()
+        const lateral = new THREE.Vector3(-outward.z, 0, outward.x)
+          .multiplyScalar(index % 2 === 0 ? 1.45 : -1.45)
+        const pin = createDestinationPin()
+        pin.position.copy(territory.world)
+          .add(outward.multiplyScalar(.82))
+          .add(lateral)
+        pin.position.y = -.43
+        pin.userData.agentIndex = index
+        pin.userData.baseY = pin.position.y
+        destinationPins.push(pin)
+        scene.add(pin)
+      }
+    }
 
     const boats: THREE.Group[] = []
     const routes: THREE.Line[] = []
@@ -341,6 +364,20 @@ function useThreeOcean(
         routeMaterial.opacity = agent.status === 'planned' ? .035 : agent.status === 'running' ? .48 : .24
       })
 
+      destinationPins.forEach((pin, index) => {
+        const agent = state.agents[index]
+        const failed = agent?.status === 'failed' || agent?.retrying
+        const color = failed ? 0xff4f5e : agent?.status === 'succeeded' ? 0xffd76a : 0x72fff2
+        const pulse = reducedMotion ? 1 : 1 + Math.sin(elapsed * 1.65 + index * .8) * .055
+        pin.scale.setScalar(pulse)
+        pin.position.y = (pin.userData.baseY as number) + (reducedMotion ? 0 : Math.sin(elapsed * 1.2 + index) * .045)
+        setDestinationPinColor(pin, color)
+      })
+
+      if (dock && !reducedMotion) {
+        dock.position.y = Math.sin(elapsed * .72) * .012
+      }
+
       if (!reducedMotion) {
         camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetPointer.x * (hero ? .62 : .7), .018)
         camera.position.y = THREE.MathUtils.lerp(camera.position.y, (hero ? 6.4 : 7.4) + targetPointer.y * .26, .018)
@@ -398,14 +435,14 @@ function createSky(): THREE.Mesh {
         void main() {
           float height = clamp(vDirection.y * .5 + .5, 0.0, 1.0);
           float horizon = exp(-pow((height - .46) * 7.0, 2.0));
-          vec3 zenith = vec3(.004, .018, .042);
-          vec3 middle = vec3(.012, .075, .105);
-          vec3 horizonColor = vec3(.08, .28, .31);
+          vec3 zenith = vec3(.0002, .0005, .0015);
+          vec3 middle = vec3(.001, .004, .009);
+          vec3 horizonColor = vec3(.004, .013, .021);
           vec3 color = mix(zenith, middle, smoothstep(.28, .68, 1.0 - height));
-          color = mix(color, horizonColor, horizon * .58);
+          color = mix(color, horizonColor, horizon * .5);
           float auroraNoise = noise(vDirection.xz * 3.5 + vec2(uTime * .018, 0.0));
           float aurora = smoothstep(.55, .9, auroraNoise) * smoothstep(.42, .7, height) * smoothstep(.94, .64, height);
-          color += vec3(.03, .34, .29) * aurora * .22;
+          color += vec3(.01, .08, .085) * aurora * .08;
           gl_FragColor = vec4(color, 1.0);
         }
       `,
@@ -729,6 +766,110 @@ function createWakeTrail(side: number, material: THREE.LineBasicMaterial): THREE
     new THREE.Vector3(side * 2.25, -.22, -2.05),
   )
   return new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(18)), material)
+}
+
+function createDestinationPin(): THREE.Group {
+  const pin = new THREE.Group()
+  const markerMaterial = new THREE.MeshStandardMaterial({
+    color: 0xb9fff8,
+    emissive: 0x72fff2,
+    emissiveIntensity: 1.35,
+    metalness: .16,
+    roughness: .28,
+  })
+  markerMaterial.name = 'destination-marker'
+  const darkMetal = new THREE.MeshStandardMaterial({ color: 0x16343a, metalness: .68, roughness: .3 })
+
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(.022, .036, .7, 10), darkMetal)
+  stem.position.y = .2
+  const point = new THREE.Mesh(new THREE.ConeGeometry(.105, .36, 16), markerMaterial)
+  point.position.y = .63
+  point.rotation.z = Math.PI
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(.19, 20, 14), markerMaterial)
+  beacon.position.y = .88
+  const halo = new THREE.Mesh(
+    new THREE.TorusGeometry(.28, .025, 8, 28),
+    new THREE.MeshBasicMaterial({ color: 0x72fff2, transparent: true, opacity: .72, blending: THREE.AdditiveBlending }),
+  )
+  halo.name = 'destination-halo'
+  halo.position.y = .88
+  const waterRing = new THREE.Mesh(
+    new THREE.TorusGeometry(.3, .018, 6, 32),
+    new THREE.MeshBasicMaterial({ color: 0x72fff2, transparent: true, opacity: .26, blending: THREE.AdditiveBlending }),
+  )
+  waterRing.name = 'destination-halo'
+  waterRing.position.y = -.16
+  waterRing.rotation.x = Math.PI / 2
+  pin.add(stem, point, beacon, halo, waterRing)
+  return pin
+}
+
+function setDestinationPinColor(pin: THREE.Group, color: number) {
+  pin.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return
+    if (object.material.name === 'destination-marker') {
+      const material = object.material as THREE.MeshStandardMaterial
+      material.color.setHex(color)
+      material.emissive.setHex(color)
+    } else if (object.name === 'destination-halo') {
+      ;(object.material as THREE.MeshBasicMaterial).color.setHex(color)
+    }
+  })
+}
+
+function createHarborDock(): THREE.Group {
+  const dock = new THREE.Group()
+  dock.position.set(-1.08, 0, 0)
+  const woodColors = [0x6f4629, 0x805334, 0x5d3924]
+  const woodMaterials = woodColors.map((color) => new THREE.MeshStandardMaterial({
+    color,
+    roughness: .86,
+    metalness: .02,
+  }))
+  const darkWood = new THREE.MeshStandardMaterial({ color: 0x3a2418, roughness: .94 })
+  const brass = new THREE.MeshStandardMaterial({ color: 0xa97739, emissive: 0x4b2a0d, emissiveIntensity: .3, metalness: .48, roughness: .38 })
+  const lanternMaterial = new THREE.MeshBasicMaterial({ color: 0xffd68a })
+
+  for (let index = 0; index < 9; index += 1) {
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(1.35, .13, .34), woodMaterials[index % woodMaterials.length])
+    plank.position.set(0, -.39 + (index % 3) * .006, 5.65 + index * .37)
+    plank.rotation.y = (index % 2 ? 1 : -1) * .008
+    dock.add(plank)
+  }
+
+  const underRailLeft = new THREE.Mesh(new THREE.BoxGeometry(.14, .15, 3.45), darkWood)
+  underRailLeft.position.set(-.5, -.5, 7.13)
+  const underRailRight = underRailLeft.clone()
+  underRailRight.position.x = .5
+  dock.add(underRailLeft, underRailRight)
+
+  for (const z of [5.62, 7.02, 8.58]) {
+    for (const x of [-.78, .78]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(.075, .095, 1.15, 10), darkWood)
+      post.position.set(x, -.33, z)
+      dock.add(post)
+    }
+  }
+
+  for (const x of [-.58, .58]) {
+    const lanternPost = new THREE.Mesh(new THREE.CylinderGeometry(.025, .035, .66, 10), brass)
+    lanternPost.position.set(x, -.03, 5.74)
+    const lantern = new THREE.Mesh(new THREE.SphereGeometry(.075, 12, 8), lanternMaterial)
+    lantern.position.set(x, .31, 5.74)
+    dock.add(lanternPost, lantern)
+  }
+  const harborLight = new THREE.PointLight(0xffbd69, 8, 4.2, 2)
+  harborLight.position.set(0, .35, 5.7)
+  dock.add(harborLight)
+
+  const ropeMaterial = new THREE.LineBasicMaterial({ color: 0xb28a5b, transparent: true, opacity: .62 })
+  const mooringRope = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(.73, -.05, 5.72),
+    new THREE.Vector3(1.02, -.38, 5.9),
+    new THREE.Vector3(1.14, -.27, 6.25),
+  )
+  dock.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(mooringRope.getPoints(18)), ropeMaterial))
+  return dock
 }
 
 function setBoatColor(boat: THREE.Group, color: number) {
