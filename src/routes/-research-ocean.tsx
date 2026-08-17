@@ -113,7 +113,7 @@ export function ResearchOcean({
 
       {sources.length ? (
         <details className="ocean-source-disclosure">
-          <summary>{sources.length} source {sources.length === 1 ? 'website' : 'websites'}</summary>
+          <summary>Showing {sources.length} {sources.length === 1 ? 'source' : 'sources'}</summary>
           <div className="ocean-source-stream" aria-label="Live source websites">
             {sources.map((source, index) => (
               <a
