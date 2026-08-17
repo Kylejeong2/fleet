@@ -8,6 +8,8 @@ import {
   createAgentId,
   createToolCallId,
   parseRunId,
+  publicRunInput,
+  redactProviderCredentials,
   type AgentId,
   type CreateRunInput,
   type FleetEventDraft,
@@ -60,7 +62,7 @@ async function planFleetStep(
       kind: 'run.accepted',
       runId,
       at: eventTime(),
-      ...input,
+      ...publicRunInput(input),
     })
     await writeEvent(writer, {
       kind: 'orchestrator.activity',
@@ -98,7 +100,11 @@ async function researchAgentStep(
 ): Promise<Finding | null> {
   'use step'
   const { attempt } = getStepMetadata()
-  const { worker, tools } = createFleetDependencies(input.profile)
+  const { worker, tools } = createFleetDependencies(
+    input.profile,
+    process.env,
+    input.providerCredentials,
+  )
   const writer = writable.getWriter()
   const history: Array<{ call: ResearchToolCall; result: ResearchToolResult }> = []
   const startedAt = Date.now()
@@ -215,7 +221,10 @@ async function researchAgentStep(
           },
         })
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Tool call failed'
+        const message = redactProviderCredentials(
+          error instanceof Error ? error.message : 'Tool call failed',
+          input.providerCredentials,
+        )
         history.push({ call: response.call, result: { kind: 'error', message } })
         await writeEvent(writer, {
           kind: 'tool.failed',
@@ -233,7 +242,10 @@ async function researchAgentStep(
     }
     throw new Error('Agent exceeded its tool-turn limit')
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Agent failed'
+    const message = redactProviderCredentials(
+      error instanceof Error ? error.message : 'Agent failed',
+      input.providerCredentials,
+    )
     if (isTransientFailure(message) && attempt < 5) {
       const retrySeconds = Math.min(60, 2 ** attempt * 2)
       await writeEvent(writer, {
@@ -273,7 +285,11 @@ async function synthesizeStep(
 ): Promise<void> {
   'use step'
   const { attempt } = getStepMetadata()
-  const { synthesizer } = createFleetDependencies(input.profile)
+  const { synthesizer } = createFleetDependencies(
+    input.profile,
+    process.env,
+    input.providerCredentials,
+  )
   const writer = writable.getWriter()
   let answer = ''
   try {
@@ -318,7 +334,10 @@ async function synthesizeStep(
       answer,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Synthesis failed'
+    const message = redactProviderCredentials(
+      error instanceof Error ? error.message : 'Synthesis failed',
+      input.providerCredentials,
+    )
     if (attempt < 5) {
       throw new RetryableError(message, {
         retryAfter: `${Math.min(60, 2 ** attempt * 2)}s`,

@@ -7,6 +7,8 @@ import {
   CreateRunInputSchema,
   HttpUrlSchema,
   isPublicIpAddress,
+  publicRunInput,
+  redactProviderCredentials,
   parseRunId,
   type FleetEvent,
   type RunSnapshot,
@@ -41,6 +43,34 @@ describe('Fleet reducer', () => {
       profile: 'live',
     })
     expect(input.context).toContain('Revenue operations')
+  })
+
+  it('requires complete provider credentials above the included 10-agent tier', () => {
+    const publicInput = {
+      question: 'What evidence exists?',
+      agentCount: 10,
+      concurrency: 6,
+      profile: 'live' as const,
+    }
+    expect(CreateRunInputSchema.parse(publicInput).agentCount).toBe(10)
+    expect(() => CreateRunInputSchema.parse({ ...publicInput, agentCount: 12 })).toThrow(
+      'Fleets above 10 agents require Sail, Browserbase, and AI Gateway API keys.',
+    )
+    const input = CreateRunInputSchema.parse({
+      ...publicInput,
+      agentCount: 12,
+      providerCredentials: {
+        sailApiKey: 'sail-secret',
+        browserbaseApiKey: 'browserbase-secret',
+        aiGatewayApiKey: 'gateway-secret',
+      },
+    })
+    expect(input.providerCredentials?.sailApiKey).toBe('sail-secret')
+    expect(publicRunInput(input)).not.toHaveProperty('providerCredentials')
+    expect(redactProviderCredentials(
+      'Provider rejected sail-secret and gateway-secret.',
+      input.providerCredentials,
+    )).toBe('Provider rejected [redacted] and [redacted].')
   })
 
   it('accepts only HTTP and HTTPS research URLs', () => {

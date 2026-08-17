@@ -1,8 +1,10 @@
 import {
   createAgentId,
   createToolCallId,
+  redactProviderCredentials,
   type AgentId,
   type CreateRunInput,
+  type ProviderCredentials,
   type RunId,
   type ToolTrace,
 } from '../../lib/fleet-protocol'
@@ -58,6 +60,7 @@ export class RunCoordinator {
     private readonly worker: WorkerModel,
     private readonly tools: ResearchTools,
     private readonly synthesizer: Synthesizer,
+    private readonly providerCredentials?: ProviderCredentials,
   ) {}
 
   async run(runId: RunId, input: CreateRunInput): Promise<void> {
@@ -205,7 +208,10 @@ export class RunCoordinator {
         failed: input.agentCount - findings.length,
       })
     } catch (error) {
-      const publicError = error instanceof Error ? error.message : 'Research failed'
+      const publicError = redactProviderCredentials(
+        error instanceof Error ? error.message : 'Research failed',
+        this.providerCredentials,
+      )
       fleetLog('error', 'run.failed', {
         run: runId,
         durationMs: Date.now() - runStartedAt,
@@ -367,7 +373,10 @@ export class RunCoordinator {
             contentChars: result.kind === 'fetch' ? result.text.length : undefined,
           })
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Tool call failed'
+          const message = redactProviderCredentials(
+            error instanceof Error ? error.message : 'Tool call failed',
+            this.providerCredentials,
+          )
           fleetLog('error', 'tool.failed', {
             run: args.runId,
             agent: logAgentId(args.agentId),
@@ -394,7 +403,10 @@ export class RunCoordinator {
       }
       throw new Error('Agent exceeded its tool-turn limit')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Agent failed'
+      const message = redactProviderCredentials(
+        error instanceof Error ? error.message : 'Agent failed',
+        this.providerCredentials,
+      )
       fleetLog('error', 'agent.failed', {
         run: args.runId,
         agent: logAgentId(args.agentId),

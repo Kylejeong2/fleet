@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   Moon,
   Search as SearchIcon,
+  Settings,
   Sun,
   XCircle,
 } from 'lucide-react'
@@ -30,9 +31,12 @@ import {
 } from 'react'
 import {
   FleetEventSchema,
+  ProviderCredentialsSchema,
   RunSnapshotSchema,
+  SELF_FUNDED_AGENT_THRESHOLD,
   type AgentSnapshot,
   type FleetEvent,
+  type ProviderCredentials,
   type RunSnapshot,
   type ToolTrace,
 } from '../lib/fleet-protocol'
@@ -89,7 +93,13 @@ const agentNames = [
   'Claim checker',
 ]
 
-const agentCountOptions = [1, 3, 6, 12, 25, 50, 100] as const
+const agentCountOptions = [1, 3, 6, 10, 12, 25, 50, 100] as const
+const providerCredentialsStorageKey = 'fleet-provider-credentials'
+const emptyProviderCredentials: ProviderCredentials = {
+  sailApiKey: '',
+  browserbaseApiKey: '',
+  aiGatewayApiKey: '',
+}
 type Theme = 'light' | 'dark'
 
 const botPalettes = [
@@ -104,7 +114,7 @@ const botPalettes = [
 function FleetHome() {
   const [hydrated, setHydrated] = useState(false)
   const [question, setQuestion] = useState('')
-  const [agentCount, setAgentCount] = useState(50)
+  const [agentCount, setAgentCount] = useState(10)
   const [snapshot, setSnapshot] = useState<RunSnapshot | null>(null)
   const [conversationHistory, setConversationHistory] = useState<RunSnapshot[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
@@ -113,7 +123,13 @@ function FleetHome() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [theme, setTheme] = useState<Theme>('light')
+  const [providerCredentials, setProviderCredentials] = useState<ProviderCredentials | null>(null)
+  const [credentialDraft, setCredentialDraft] = useState<ProviderCredentials>(emptyProviderCredentials)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
   const fleetButtonRef = useRef<HTMLButtonElement>(null)
+  const settingsButtonRef = useRef<HTMLButtonElement>(null)
+  const settingsDialogRef = useRef<HTMLElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
@@ -128,6 +144,18 @@ function FleetHome() {
       : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     setTheme(preferredTheme)
     document.documentElement.dataset.theme = preferredTheme
+    try {
+      const storedCredentials = window.localStorage.getItem(providerCredentialsStorageKey)
+      const parsed = ProviderCredentialsSchema.safeParse(
+        storedCredentials ? JSON.parse(storedCredentials) : null,
+      )
+      if (parsed.success) {
+        setProviderCredentials(parsed.data)
+        setCredentialDraft(parsed.data)
+      }
+    } catch {
+      window.localStorage.removeItem(providerCredentialsStorageKey)
+    }
   }, [])
 
   useEffect(() => {
@@ -166,6 +194,36 @@ function FleetHome() {
   useEffect(() => {
     if (fleetOpen) closeButtonRef.current?.focus()
   }, [fleetOpen, selectedAgentId])
+
+  useEffect(() => {
+    if (!settingsOpen) return
+    settingsDialogRef.current?.querySelector<HTMLInputElement>('input')?.focus()
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSettingsOpen(false)
+        requestAnimationFrame(() => settingsButtonRef.current?.focus())
+        return
+      }
+      if (event.key !== 'Tab' || !settingsDialogRef.current) return
+      const focusable = Array.from(
+        settingsDialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      )
+      const first = focusable[0]
+      const last = focusable.at(-1)
+      if (!first || !last) return
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [settingsOpen])
 
   useEffect(() => {
     if (!snapshot?.id) return
@@ -249,6 +307,11 @@ function FleetHome() {
   async function startResearch(event: FormEvent<HTMLFormElement>, mode: 'new' | 'follow-up' = 'new') {
     event.preventDefault()
     if (question.trim().length < 3 || submitting) return
+    if (agentCount > SELF_FUNDED_AGENT_THRESHOLD && !providerCredentials) {
+      setSettingsError('Add all three provider keys to launch more than 10 agents.')
+      setSettingsOpen(true)
+      return
+    }
     const currentSnapshot = snapshot
     const isFollowUp = mode === 'follow-up' && currentSnapshot !== null
     const priorTurns = isFollowUp ? [...conversationHistory, currentSnapshot] : []
@@ -275,6 +338,9 @@ function FleetHome() {
           agentCount,
           concurrency: Math.min(agentCount, 6),
           profile: 'live',
+          ...(agentCount > SELF_FUNDED_AGENT_THRESHOLD
+            ? { providerCredentials }
+            : {}),
         }),
       })
       const body: unknown = await response.json()
@@ -320,6 +386,34 @@ function FleetHome() {
     })
   }
 
+  function openSettings() {
+    setCredentialDraft(providerCredentials ?? emptyProviderCredentials)
+    setSettingsError(null)
+    setSettingsOpen(true)
+  }
+
+  function saveProviderCredentials(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const parsed = ProviderCredentialsSchema.safeParse(credentialDraft)
+    if (!parsed.success) {
+      setSettingsError('Enter a Sail, Browserbase, and AI Gateway API key.')
+      return
+    }
+    window.localStorage.setItem(providerCredentialsStorageKey, JSON.stringify(parsed.data))
+    setProviderCredentials(parsed.data)
+    setCredentialDraft(parsed.data)
+    setSettingsError(null)
+    setSettingsOpen(false)
+    requestAnimationFrame(() => settingsButtonRef.current?.focus())
+  }
+
+  function clearProviderCredentials() {
+    window.localStorage.removeItem(providerCredentialsStorageKey)
+    setProviderCredentials(null)
+    setCredentialDraft(emptyProviderCredentials)
+    setSettingsError(null)
+  }
+
   return (
     <LazyMotion features={domAnimation} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
@@ -348,6 +442,16 @@ function FleetHome() {
                 View fleet
               </button>
             ) : null}
+            <button
+              className="theme-toggle"
+              type="button"
+              ref={settingsButtonRef}
+              onClick={openSettings}
+              aria-label="Configure provider keys"
+              title="Configure provider keys"
+            >
+              <Settings aria-hidden="true" size={16} strokeWidth={1.8} />
+            </button>
             <button
               className="theme-toggle"
               type="button"
@@ -380,6 +484,8 @@ function FleetHome() {
                 setQuestion={setQuestion}
                 agentCount={agentCount}
                 setAgentCount={setAgentCount}
+                providerKeysReady={providerCredentials !== null}
+                onOpenSettings={openSettings}
                 submitting={submitting}
                 onSubmit={startResearch}
               />
@@ -422,6 +528,21 @@ function FleetHome() {
           onSelectAgent={setSelectedAgentId}
         />
       ) : null}
+      {settingsOpen ? (
+        <ProviderSettingsDialog
+          credentials={credentialDraft}
+          error={settingsError}
+          onChange={setCredentialDraft}
+          onClear={clearProviderCredentials}
+          onClose={() => {
+            setSettingsOpen(false)
+            requestAnimationFrame(() => settingsButtonRef.current?.focus())
+          }}
+          onSubmit={saveProviderCredentials}
+          dialogRef={settingsDialogRef}
+          saved={providerCredentials !== null}
+        />
+      ) : null}
     </main>
     </LazyMotion>
   )
@@ -432,9 +553,12 @@ function WelcomeComposer(props: {
   setQuestion: (value: string) => void
   agentCount: number
   setAgentCount: (value: number) => void
+  providerKeysReady: boolean
+  onOpenSettings: () => void
   submitting: boolean
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
 }) {
+  const needsProviderKeys = props.agentCount > SELF_FUNDED_AGENT_THRESHOLD && !props.providerKeysReady
   return (
     <section className="welcome-stage" aria-labelledby="research-heading">
       <div className="intro">
@@ -463,7 +587,7 @@ function WelcomeComposer(props: {
             value={String(props.agentCount)}
             options={agentCountOptions.map((count) => ({
               value: String(count),
-              label: `${count} ${count === 1 ? 'agent' : 'agents'}`,
+              label: `${count} ${count === 1 ? 'agent' : 'agents'}${count > SELF_FUNDED_AGENT_THRESHOLD ? ' · own keys' : ''}`,
             }))}
             className="agent-count-control"
             onValueChange={(value) => props.setAgentCount(Number(value))}
@@ -473,17 +597,93 @@ function WelcomeComposer(props: {
             type="submit"
             disabled={props.submitting || props.question.trim().length < 3}
           >
-            <span>{props.submitting ? 'Starting' : 'Launch fleet'}</span>
+            <span>{props.submitting ? 'Starting' : needsProviderKeys ? 'Add keys to launch' : 'Launch fleet'}</span>
             <ArrowUp aria-hidden="true" size={14} strokeWidth={2} />
           </button>
         </div>
       </form>
+      <p className={`provider-key-note ${needsProviderKeys ? 'required' : ''}`}>
+        {needsProviderKeys ? (
+          <>More than 10 agents requires your own Sail, Browserbase, and AI Gateway keys. <button type="button" onClick={props.onOpenSettings}>Add keys</button></>
+        ) : props.agentCount > SELF_FUNDED_AGENT_THRESHOLD ? (
+          <>Your saved provider keys will fund this fleet. <button type="button" onClick={props.onOpenSettings}>Manage keys</button></>
+        ) : (
+          <>Up to 10 agents are included. <button type="button" onClick={props.onOpenSettings}>Bring your own keys</button></>
+        )}
+      </p>
       <div className="ocean-transition-frame ocean-transition-hero">
         <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
           <ResearchOcean />
         </Suspense>
       </div>
     </section>
+  )
+}
+
+function ProviderSettingsDialog(props: {
+  credentials: ProviderCredentials
+  error: string | null
+  onChange: (credentials: ProviderCredentials) => void
+  onClear: () => void
+  onClose: () => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  dialogRef: React.RefObject<HTMLElement | null>
+  saved: boolean
+}) {
+  const fields = [
+    ['sailApiKey', 'Sail API key', 'Sail runs each research worker.'],
+    ['browserbaseApiKey', 'Browserbase API key', 'Browserbase powers Search and Fetch.'],
+    ['aiGatewayApiKey', 'AI Gateway API key', 'AI Gateway synthesizes the final answer.'],
+  ] as const
+  return (
+    <div className="scrim settings-scrim" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) props.onClose()
+    }}>
+      <section
+        className="provider-settings-dialog"
+        ref={props.dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="provider-settings-title"
+      >
+        <header>
+          <div>
+            <h2 id="provider-settings-title">Provider keys</h2>
+            <p>Bring your own keys to launch fleets above 10 agents.</p>
+          </div>
+          <button type="button" onClick={props.onClose} aria-label="Close provider settings">×</button>
+        </header>
+        <form onSubmit={props.onSubmit}>
+          <div className="provider-key-fields">
+            {fields.map(([name, label, description]) => (
+              <label key={name}>
+                <span>{label}</span>
+                <small>{description}</small>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={props.credentials[name]}
+                  onChange={(event) => props.onChange({
+                    ...props.credentials,
+                    [name]: event.target.value,
+                  })}
+                  placeholder={`Enter ${label}`}
+                />
+              </label>
+            ))}
+          </div>
+          <p className="provider-storage-note">
+            Keys are saved in this browser's local storage and sent with self-funded runs. Fleet excludes them from run history, events, logs, and responses.
+          </p>
+          {props.error ? <p className="settings-error" role="alert">{props.error}</p> : null}
+          <footer>
+            {props.saved ? <button className="clear-keys-button" type="button" onClick={props.onClear}>Clear saved keys</button> : <span />}
+            <button className="save-keys-button" type="submit">Save keys</button>
+          </footer>
+        </form>
+      </section>
+    </div>
   )
 }
 

@@ -71,14 +71,52 @@ export const createEventSeq = (value: number): EventSeq => EventSeqSchema.parse(
 export const RunProfileSchema = z.enum(['development', 'live-workers', 'live'])
 export type RunProfile = z.infer<typeof RunProfileSchema>
 
-export const CreateRunInputSchema = z.object({
+export const SELF_FUNDED_AGENT_THRESHOLD = 10
+
+export const ProviderCredentialsSchema = z.object({
+  sailApiKey: z.string().trim().min(1).max(1_000),
+  browserbaseApiKey: z.string().trim().min(1).max(1_000),
+  aiGatewayApiKey: z.string().trim().min(1).max(1_000),
+})
+export type ProviderCredentials = z.infer<typeof ProviderCredentialsSchema>
+
+export const PublicRunInputSchema = z.object({
   question: z.string().trim().min(3).max(10_000),
   context: z.string().trim().max(20_000).optional(),
   agentCount: z.number().int().min(1).max(100),
   concurrency: z.number().int().min(1).max(8),
   profile: RunProfileSchema,
 })
+export type PublicRunInput = z.infer<typeof PublicRunInputSchema>
+
+export const CreateRunInputSchema = PublicRunInputSchema.extend({
+  providerCredentials: ProviderCredentialsSchema.optional(),
+}).superRefine((input, context) => {
+  if (input.agentCount > SELF_FUNDED_AGENT_THRESHOLD && !input.providerCredentials) {
+    context.addIssue({
+      code: 'custom',
+      path: ['providerCredentials'],
+      message: `Fleets above ${SELF_FUNDED_AGENT_THRESHOLD} agents require Sail, Browserbase, and AI Gateway API keys.`,
+    })
+  }
+})
 export type CreateRunInput = z.infer<typeof CreateRunInputSchema>
+
+export const publicRunInput = (input: CreateRunInput): PublicRunInput => ({
+  question: input.question,
+  ...(input.context ? { context: input.context } : {}),
+  agentCount: input.agentCount,
+  concurrency: input.concurrency,
+  profile: input.profile,
+})
+
+export const redactProviderCredentials = (
+  message: string,
+  credentials?: ProviderCredentials,
+): string => Object.values(credentials ?? {}).reduce(
+  (redacted, credential) => redacted.replaceAll(credential, '[redacted]'),
+  message,
+)
 
 const SearchResultSchema = z.object({
   title: z.string(),

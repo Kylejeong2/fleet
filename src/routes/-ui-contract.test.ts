@@ -20,6 +20,15 @@ describe('interface copy contract', () => {
     expect(interfaceSource).not.toContain('Live workers')
   })
 
+  it('gates fleets above 10 agents behind browser-persisted provider keys', () => {
+    expect(interfaceSource).toContain("const providerCredentialsStorageKey = 'fleet-provider-credentials'")
+    expect(interfaceSource).toContain('window.localStorage.setItem(providerCredentialsStorageKey')
+    expect(interfaceSource).toContain('window.localStorage.removeItem(providerCredentialsStorageKey)')
+    expect(interfaceSource).toContain('More than 10 agents requires your own Sail, Browserbase, and AI Gateway keys.')
+    expect(interfaceSource).toContain("? { providerCredentials }")
+    expect(interfaceSource).toContain('Fleet excludes them from run history, events, logs, and responses.')
+  })
+
   it('provides an accessible persisted theme toggle', () => {
     expect(interfaceSource).toContain("window.localStorage.getItem('fleet-theme')")
     expect(interfaceSource).toContain("window.localStorage.setItem('fleet-theme', nextTheme)")

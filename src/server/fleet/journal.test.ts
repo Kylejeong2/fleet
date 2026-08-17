@@ -46,4 +46,28 @@ describe('FleetJournal', () => {
     expect(second.sequence).toBe(2)
     journal.close()
   })
+
+  it('never persists provider credentials in public run events', () => {
+    const journal = new FleetJournal(':memory:')
+    const runId = createRunId()
+    journal.createRun({
+      runId,
+      input: {
+        ...input,
+        agentCount: 12,
+        providerCredentials: {
+          sailApiKey: 'sail-secret',
+          browserbaseApiKey: 'browserbase-secret',
+          aiGatewayApiKey: 'gateway-secret',
+        },
+      },
+      idempotencyKey: null,
+    })
+    const serializedEvents = JSON.stringify(journal.read(runId))
+    expect(serializedEvents).not.toContain('sail-secret')
+    expect(serializedEvents).not.toContain('browserbase-secret')
+    expect(serializedEvents).not.toContain('gateway-secret')
+    expect(serializedEvents).not.toContain('providerCredentials')
+    journal.close()
+  })
 })

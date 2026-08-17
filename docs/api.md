@@ -15,7 +15,12 @@ Idempotency-Key: optional-client-key
   "question": "Where can cheap, high-throughput inference create a new product category?",
   "agentCount": 12,
   "concurrency": 4,
-  "profile": "development"
+  "profile": "live",
+  "providerCredentials": {
+    "sailApiKey": "...",
+    "browserbaseApiKey": "...",
+    "aiGatewayApiKey": "..."
+  }
 }
 ```
 
@@ -25,6 +30,7 @@ Constraints:
 - `agentCount` is between 1 and 100.
 - `concurrency` is between 1 and 8.
 - `profile` is `development`, `live-workers`, or `live`.
+- `providerCredentials` is required when `agentCount` is greater than 10. It must contain all three provider keys and is never returned in a run event or snapshot.
 
 The service responds as soon as the run is durably accepted. Provider work continues asynchronously. Repeating the same body and `Idempotency-Key` returns the original run. Reusing the key with a different body returns a conflict.
 

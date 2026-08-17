@@ -25,6 +25,8 @@ pnpm dev
 
 Open the URL printed by Vite. The interface launches full fleets, so local use requires `SAIL_API_KEY`, `BROWSERBASE_API_KEY`, and `AI_GATEWAY_API_KEY`. Each run uses Sail researchers, Browserbase tools, and AI Gateway synthesis with `openai/gpt-5.6-sol`.
 
+The hosted UI includes up to 10 agents per run. Larger fleets require users to add their own Sail, Browserbase, and AI Gateway keys in provider settings. Those keys remain in that browser's local storage between launches, are sent only with self-funded run requests, and are excluded from Fleet events, snapshots, and logs.
+
 ## Verify the build
 
 ```bash
