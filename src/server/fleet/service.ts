@@ -16,12 +16,14 @@ import {
   type AdmissionLease,
   type FleetPolicy,
 } from './admission'
+import { createRetentionConfig } from './retention'
 
 export class IdempotencyConflictError extends Error {}
 export class RunNotFoundError extends Error {}
 export { ProfileNotReadyError } from './dependencies'
 
 export class FleetService {
+  readonly #coordinators = new Map<RunId, RunCoordinator>()
   constructor(
     readonly journal: FleetJournal,
     private readonly coordinatorFactory: (
@@ -46,10 +48,14 @@ export class FleetService {
     }
     const effectiveRunId = result.runId
     if (result.kind === 'created') {
+      this.#coordinators.set(effectiveRunId, coordinator)
       void coordinator.run(effectiveRunId, args.input, {
         userId: args.actor.userId,
         onUsage: (usage) => this.policy.recordUsage(args.lease, effectiveRunId, usage),
-      }).finally(() => this.policy.release(args.lease))
+      }).finally(() => {
+        this.#coordinators.delete(effectiveRunId)
+        return this.policy.release(args.lease)
+      })
     } else {
       void this.policy.release(args.lease)
     }
@@ -72,6 +78,19 @@ export class FleetService {
     return this.policy.usage(actor)
   }
 
+  async cancelRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot> {
+    const snapshot = this.getRun(actor, runId)
+    if (isTerminal(snapshot)) return snapshot
+    const coordinator = this.#coordinators.get(runId)
+    if (coordinator?.cancel(runId)) return this.getRun(actor, runId)
+    this.journal.append(runId, (metadata) => ({
+      kind: 'run.cancelled',
+      runId,
+      ...metadata,
+    }))
+    return this.getRun(actor, runId)
+  }
+
   private assertOwnership(actor: FleetActor, runId: RunId): void {
     if (!this.journal.ownsRun(runId, actor.tenantId)) {
       throw new RunNotFoundError('Research run not found.')
@@ -79,11 +98,16 @@ export class FleetService {
   }
 }
 
+const isTerminal = (snapshot: RunSnapshot): boolean =>
+  snapshot.status === 'completed' || snapshot.status === 'failed' || snapshot.status === 'cancelled'
+
 export const createFleetService = (args?: {
   databasePath?: string
   environment?: NodeJS.ProcessEnv
 }): FleetService => {
   const journal = new FleetJournal(args?.databasePath)
+  const retention = createRetentionConfig(args?.environment)
+  journal.cleanupExpired(new Date(Date.now() - retention.FLEET_RUN_RETENTION_DAYS * 86_400_000))
   return new FleetService(journal, (profile) => {
     const dependencies = createFleetDependencies(profile, args?.environment)
     return new RunCoordinator(journal, dependencies.worker, dependencies.tools, dependencies.synthesizer)

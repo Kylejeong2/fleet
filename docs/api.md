@@ -40,7 +40,15 @@ GET /api/v1/runs/:runId
 
 The response is the latest `RunSnapshot`. It contains the question, execution profile, run state, ordered agents, each agent's bounded tool trace, partial synthesis, final answer, and latest event sequence.
 
-Run states are `running`, `synthesizing`, `completed`, and `failed`. Agent states are `planned`, `running`, `succeeded`, and `failed`.
+Run states are `running`, `synthesizing`, `completed`, `failed`, and `cancelled`. Agent states are `planned`, `running`, `succeeded`, and `failed`.
+
+## Cancel a run
+
+```http
+DELETE /api/v1/runs/:runId
+```
+
+Cancellation is tenant-scoped and idempotent. It aborts active local provider calls or cancels the durable Workflow run, releases its admission lease, and returns the terminal `RunSnapshot`. Cancelling a completed, failed, or already-cancelled run returns its existing snapshot.
 
 ## Follow events
 

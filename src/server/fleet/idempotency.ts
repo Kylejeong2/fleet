@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { parseRunId, type CreateRunInput, type RunId } from '../../lib/fleet-protocol'
+import { createRetentionConfig, retentionSeconds } from './retention'
 
 const StoredReservationSchema = z.discriminatedUnion('state', [
   z.object({ state: z.literal('pending'), requestHash: z.string(), token: z.string() }),
@@ -8,7 +9,7 @@ const StoredReservationSchema = z.discriminatedUnion('state', [
 ])
 
 const RedisResponseSchema = z.object({ result: z.unknown() })
-const RESERVATION_TTL_SECONDS = 60 * 60 * 24 * 30
+const DEFAULT_RESERVATION_TTL_SECONDS = 60 * 60 * 24 * 30
 
 export type ReservationResult =
   | { kind: 'reserved'; token: string; requestHash: string }
@@ -51,7 +52,10 @@ return 0
 `
 
 export class RedisIdempotencyStore implements IdempotencyStore {
-  constructor(private readonly command: RedisCommand) {}
+  constructor(
+    private readonly command: RedisCommand,
+    private readonly ttlSeconds = DEFAULT_RESERVATION_TTL_SECONDS,
+  ) {}
 
   async reserve(
     tenantId: string,
@@ -67,7 +71,7 @@ export class RedisIdempotencyStore implements IdempotencyStore {
       1,
       redisKey(tenantId, key),
       pending,
-      RESERVATION_TTL_SECONDS,
+      this.ttlSeconds,
     ])
     const result = z.tuple([z.number(), z.string()]).parse(raw)
     if (result[0] === 1) return { kind: 'reserved', token, requestHash }
@@ -93,7 +97,7 @@ export class RedisIdempotencyStore implements IdempotencyStore {
       redisKey(tenantId, key),
       pending,
       committed,
-      RESERVATION_TTL_SECONDS,
+      this.ttlSeconds,
     ])
     if (z.number().parse(result) !== 1) {
       throw new Error('Could not commit the workflow idempotency reservation.')
@@ -124,6 +128,7 @@ export const createRedisIdempotencyStore = (environment: NodeJS.ProcessEnv): Ide
       'Workflow mode requires KV_REST_API_URL and KV_REST_API_TOKEN (or the UPSTASH_REDIS_REST equivalents).',
     )
   }
+  const ttlSeconds = retentionSeconds(createRetentionConfig(environment))
   return new RedisIdempotencyStore(async (command) => {
     const response = await fetch(url, {
       method: 'POST',
@@ -135,7 +140,7 @@ export const createRedisIdempotencyStore = (environment: NodeJS.ProcessEnv): Ide
     })
     if (!response.ok) throw new Error(`Idempotency store returned ${response.status}.`)
     return RedisResponseSchema.parse(await response.json()).result
-  })
+  }, ttlSeconds)
 }
 
 const redisKey = (tenantId: string, key: string): string =>

@@ -31,6 +31,18 @@ Do not run multiple local-mode instances against the same SQLite file over netwo
 
 All production limits are configurable through the `FLEET_*` variables in `.env.example`. Admission is atomic in Redis, and capacity leases expire if normal terminal cleanup cannot run.
 
+## Cancellation
+
+`DELETE /api/v1/runs/:runId` cancels an owned run. Local mode aborts the active provider signals. Workflow mode calls the installed Workflow SDK's `Run.cancel()` operation, records a stable `run.cancelled` projection, and releases the Redis admission lease immediately. Repeating cancellation against a terminal run is safe.
+
+Closing an SSE reader tears down its application stream, but closing a browser tab does not cancel the research run itself; only the authenticated DELETE operation does that.
+
+## Retention and cleanup
+
+`FLEET_RUN_RETENTION_DAYS` defaults to 30 days and is bounded to 1–365 days. In local mode, startup and the authenticated daily cleanup delete expired SQLite run ownership, events, and idempotency records in one transaction. In Workflow mode, Redis ownership expires automatically and the Vercel Cron removes expired ownership indexes and per-run usage projections in bounded batches. Tenant-scoped idempotency records use the same TTL.
+
+The Workflow SDK 4.8.3 exposes cancellation and inspection but no run deletion API. Fleet therefore stops serving an expired Workflow run once its Redis ownership expires, but physical deletion of Vercel's encrypted Workflow event log remains governed by the platform retention contract. Confirm the required Vercel retention period with the account team before accepting regulated or contractual deletion requirements; do not represent the application TTL as physical Workflow deletion.
+
 ## Usage accounting
 
 `GET /api/v1/usage` exposes per-user daily tokens, known USD cost, unpriced request count, outstanding token reservations, and active fleets. Configure both `SAIL_INPUT_USD_PER_MILLION` and `SAIL_OUTPUT_USD_PER_MILLION` to cost Sail traffic. Gateway generations are tagged with the user and run and use the Gateway generation record for cost.
@@ -51,6 +63,9 @@ SSE consumers recover by replaying after their last committed sequence. A missin
 - Bound stored excerpts and public error strings.
 - Keep tenant ownership checks on create, snapshot, event-stream, and future mutation routes.
 
-## Deferred capabilities
+## Production checklist
 
-Cancellation, encrypted artifacts, tenant quotas, and explicit retention policies remain outside this release. The HTTP and event contracts allow those changes without a new browser client.
+- Configure Clerk, Redis, provider credentials, `CRON_SECRET`, and explicit fleet limits in every production environment.
+- Confirm the Workflow event-log retention contract meets the product's data-classification requirements.
+- Exercise authentication, tenant isolation, admission rejection, cancellation, usage totals, and cleanup against the production integrations before opening traffic.
+- Alert on 429 admission responses, cleanup failures, unpriced requests, expired leases, and provider errors.

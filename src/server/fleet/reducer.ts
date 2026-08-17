@@ -150,6 +150,9 @@ export const reduceEvent = (snapshot: RunSnapshot, event: FleetEvent): ReplayRes
     case 'run.failed':
       next = { ...snapshot, status: 'failed', error: event.error }
       break
+    case 'run.cancelled':
+      next = { ...snapshot, status: 'cancelled', error: null }
+      break
     default: {
       const exhaustive: never = event
       return exhaustive

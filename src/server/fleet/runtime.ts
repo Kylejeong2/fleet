@@ -4,6 +4,7 @@ import {
   materializeFleetEvent,
   parseRunId,
   type CreateRunInput,
+  type FleetEvent,
   type FleetEventDraft,
   type RunId,
   type RunSnapshot,
@@ -35,6 +36,7 @@ import {
   type RequestKind,
   type UsageSnapshot,
 } from './admission'
+import { createRetentionConfig, retentionSeconds } from './retention'
 
 export { AdmissionRejectedError } from './admission'
 
@@ -49,6 +51,7 @@ export interface FleetRuntime {
   checkRate(actor: FleetActor, kind: RequestKind): Promise<void>
   usage(actor: FleetActor): Promise<UsageSnapshot>
   getRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot>
+  cancelRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot>
   createEventStream(
     actor: FleetActor,
     runId: RunId,
@@ -83,6 +86,11 @@ class LocalFleetRuntime implements FleetRuntime {
 
   async getRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot> {
     return getFleetService().getRun(actor, runId)
+  }
+
+  async cancelRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot> {
+    await this.checkRate(actor, 'create')
+    return getFleetService().cancelRun(actor, runId)
   }
 
   async createEventStream(
@@ -195,9 +203,29 @@ export class WorkflowFleetRuntime implements FleetRuntime {
     const run = getRun(runId)
     if (!(await run.exists)) throw new RunNotFoundError('Research run not found.')
     const events = await readAvailableEvents(runId)
-    const snapshot = replayEvents(events)
+    const snapshot = replayEvents(await this.withCancellation(runId, events))
     if (!snapshot) throw new RunNotFoundError('Research run has not started yet.')
     return snapshot
+  }
+
+  async cancelRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot> {
+    if (!this.ownership || !this.policy) {
+      throw new ProfileNotReadyError('Workflow mode requires Redis.')
+    }
+    await this.policy.checkRate(actor, 'create')
+    await this.assertOwnership(actor, runId)
+    const snapshot = await this.getRun(actor, runId)
+    if (isTerminal(snapshot)) return snapshot
+    const run = getRun(runId)
+    if (!(await run.exists)) throw new RunNotFoundError('Research run not found.')
+    await run.cancel()
+    const cancelledAt = new Date().toISOString()
+    await this.ownership.markCancelled(runId, cancelledAt)
+    const leaseId = await this.ownership.leaseId(runId)
+    if (leaseId) {
+      await this.policy.release({ id: leaseId, actor, slots: 0, reservedTokens: 0 })
+    }
+    return this.getRun(actor, runId)
   }
 
   async createEventStream(
@@ -209,6 +237,7 @@ export class WorkflowFleetRuntime implements FleetRuntime {
     const run = getRun(runId)
     if (!(await run.exists)) throw new RunNotFoundError('Research run not found.')
     const source = run.getReadable<FleetEventDraft>({ startIndex: after })
+    const ownership = this.ownership
     let sequence = after
     return new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -220,14 +249,34 @@ export class WorkflowFleetRuntime implements FleetRuntime {
             sequence += 1
             const event = materializeFleetEvent(result.value, sequence)
             controller.enqueue(serializeFleetEvent(event))
-            if (event.kind === 'run.completed' || event.kind === 'run.failed') {
+            if (event.kind === 'run.completed' || event.kind === 'run.failed' || event.kind === 'run.cancelled') {
               await reader.cancel()
               break
             }
           }
+          const cancelledAt = await ownership?.cancelledAt(runId)
+          if (cancelledAt) {
+            sequence += 1
+            controller.enqueue(serializeFleetEvent(materializeFleetEvent({
+              kind: 'run.cancelled',
+              runId,
+              at: cancelledAt,
+            }, sequence)))
+          }
           controller.close()
         } catch (error) {
-          controller.error(error)
+          const cancelledAt = await ownership?.cancelledAt(runId).catch(() => null)
+          if (!cancelledAt) {
+            controller.error(error)
+          } else {
+            sequence += 1
+            controller.enqueue(serializeFleetEvent(materializeFleetEvent({
+              kind: 'run.cancelled',
+              runId,
+              at: cancelledAt,
+            }, sequence)))
+            controller.close()
+          }
         } finally {
           reader.releaseLock()
         }
@@ -277,7 +326,22 @@ export class WorkflowFleetRuntime implements FleetRuntime {
       throw new RunNotFoundError('Research run not found.')
     }
   }
+
+  private async withCancellation(runId: RunId, events: FleetEvent[]): Promise<FleetEvent[]> {
+    const cancelledAt = await this.ownership?.cancelledAt(runId)
+    if (!cancelledAt) return events
+    const snapshot = replayEvents(events)
+    if (snapshot && isTerminal(snapshot)) return events
+    return [...events, materializeFleetEvent({
+      kind: 'run.cancelled',
+      runId,
+      at: cancelledAt,
+    }, events.length + 1)]
+  }
 }
+
+const isTerminal = (snapshot: RunSnapshot): boolean =>
+  snapshot.status === 'completed' || snapshot.status === 'failed' || snapshot.status === 'cancelled'
 
 const retryIdempotencyCommit = async (commit: () => Promise<void>): Promise<void> => {
   let lastError: unknown
@@ -340,12 +404,14 @@ export const getFleetRuntime = (): FleetRuntime => {
     (process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN),
   )
   const command = hasRedis ? createRedisCommand(process.env) : null
+  const retention = createRetentionConfig(process.env)
+  const runRetentionSeconds = retentionSeconds(retention)
   const policy = command
-    ? new RedisFleetPolicy(command, createAdmissionConfig(process.env))
+    ? new RedisFleetPolicy(command, createAdmissionConfig(process.env), runRetentionSeconds)
     : null
   singleton = new WorkflowFleetRuntime(
     hasRedis ? createRedisIdempotencyStore(process.env) : null,
-    command ? new RedisRunOwnershipStore(command) : null,
+    command ? new RedisRunOwnershipStore(command, runRetentionSeconds) : null,
     policy,
   )
   return singleton

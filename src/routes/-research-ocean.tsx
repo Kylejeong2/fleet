@@ -51,13 +51,13 @@ export function ResearchOcean({
   }, [snapshot])
   const liveState = useRef<OceanState>({
     agents,
-    complete: snapshot?.status === 'completed',
+    complete: snapshot?.status === 'completed' || snapshot?.status === 'cancelled',
     synthesizing: snapshot?.status === 'synthesizing',
   })
   const openAgent = useRef(onOpenAgent)
   liveState.current = {
     agents,
-    complete: snapshot?.status === 'completed',
+    complete: snapshot?.status === 'completed' || snapshot?.status === 'cancelled',
     synthesizing: snapshot?.status === 'synthesizing',
   }
   openAgent.current = onOpenAgent
@@ -69,7 +69,7 @@ export function ResearchOcean({
   const sources = snapshot ? oceanSources(snapshot.agents).slice(0, 5) : []
   const state = !snapshot
     ? 'ready'
-    : snapshot.status === 'completed'
+    : snapshot.status === 'completed' || snapshot.status === 'cancelled'
       ? 'complete'
       : snapshot.status === 'synthesizing'
         ? 'synthesizing'

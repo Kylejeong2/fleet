@@ -142,4 +142,19 @@ describe('Fleet reducer', () => {
     expect(snapshot?.orchestratorReasoning).toBe('')
     expect(snapshot?.partialAnswer).toBe('')
   })
+
+  it('projects cancellation as a terminal run state', () => {
+    const accepted = acceptedEvent()
+    const snapshot = replayEvents([
+      accepted,
+      {
+        kind: 'run.cancelled',
+        runId: accepted.runId,
+        sequence: createEventSeq(2),
+        at: new Date().toISOString(),
+      },
+    ])
+    expect(snapshot?.status).toBe('cancelled')
+    expect(snapshot?.latestSequence).toBe(2)
+  })
 })

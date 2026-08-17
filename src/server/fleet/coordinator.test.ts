@@ -121,6 +121,27 @@ const createAcceptedRun = (journal: FleetJournal, input: CreateRunInput) => {
 }
 
 describe('RunCoordinator', () => {
+  it('aborts provider work and records cancellation as the terminal event', async () => {
+    const journal = new FleetJournal(':memory:')
+    const input = runInput(1, 1)
+    const runId = createAcceptedRun(journal, input)
+    const worker: WorkerModel = {
+      name: 'blocking-worker',
+      respond: async (_turn, signal) => new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      }),
+    }
+    const coordinator = new RunCoordinator(journal, worker, new Tools(), new CountingSynthesizer())
+    const running = coordinator.run(runId, input)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(coordinator.cancel(runId)).toBe(true)
+    await running
+    const events = journal.read(runId)
+    expect(events.at(-1)?.kind).toBe('run.cancelled')
+    expect(replayEvents(events)?.status).toBe('cancelled')
+    journal.close()
+  })
+
   it('reports worker and synthesis usage through one run callback', async () => {
     const journal = new FleetJournal(':memory:')
     const input = runInput(1, 1)

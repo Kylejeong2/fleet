@@ -125,6 +125,7 @@ redis.call('HINCRBY', KEYS[7], 'outputTokens', ARGV[2])
 redis.call('HINCRBYFLOAT', KEYS[7], 'costUsd', ARGV[3])
 redis.call('HINCRBY', KEYS[7], 'unpricedRequests', ARGV[4])
 redis.call('HSET', KEYS[7], 'lastProvider', ARGV[6], 'lastModel', ARGV[7])
+redis.call('EXPIRE', KEYS[7], ARGV[9])
 return 1
 `
 
@@ -153,6 +154,7 @@ export class RedisFleetPolicy implements FleetPolicy {
   constructor(
     private readonly command: RedisCommand,
     private readonly config: AdmissionConfig,
+    private readonly runRetentionSeconds = 2_592_000,
   ) {}
 
   async checkRate(actor: FleetActor, kind: RequestKind): Promise<void> {
@@ -232,7 +234,8 @@ export class RedisFleetPolicy implements FleetPolicy {
       172_800,
       charge.provider,
       charge.model,
-      2_592_000,
+      this.runRetentionSeconds,
+      this.runRetentionSeconds,
     ])
   }
 

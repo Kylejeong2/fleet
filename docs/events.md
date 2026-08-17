@@ -21,6 +21,7 @@ The ordered event journal is Fleet's source of truth. The server and browser der
 | `synthesis.delta` | One real synthesizer text delta was committed. |
 | `run.completed` | The complete answer was committed. |
 | `run.failed` | The run could not produce an answer. |
+| `run.cancelled` | The owner cancelled the run and provider work was stopped. |
 
 Every event contains `runId`, a positive integer `sequence`, and an ISO 8601 `at` timestamp.
 

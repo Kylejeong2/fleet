@@ -167,6 +167,28 @@ export class FleetJournal {
     return row ? OwnerRowSchema.parse(row).tenant_id === tenantId : false
   }
 
+  cleanupExpired(cutoff: Date): number {
+    const expired = z.array(z.object({ run_id: z.string() })).parse(
+      this.#database
+        .prepare('SELECT run_id FROM fleet_run_owners WHERE created_at < ?')
+        .all(cutoff.toISOString()),
+    )
+    if (expired.length === 0) return 0
+    this.#database.exec('BEGIN IMMEDIATE')
+    try {
+      for (const row of expired) {
+        this.#database.prepare('DELETE FROM fleet_events WHERE run_id = ?').run(row.run_id)
+        this.#database.prepare('DELETE FROM fleet_idempotency WHERE run_id = ?').run(row.run_id)
+        this.#database.prepare('DELETE FROM fleet_run_owners WHERE run_id = ?').run(row.run_id)
+      }
+      this.#database.exec('COMMIT')
+      return expired.length
+    } catch (error) {
+      this.#database.exec('ROLLBACK')
+      throw error
+    }
+  }
+
   subscribe(runId: RunId, callback: () => void): () => void {
     const subscribers = this.#subscribers.get(runId) ?? new Set<() => void>()
     subscribers.add(callback)
