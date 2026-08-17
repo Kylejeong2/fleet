@@ -52,7 +52,7 @@ describe('interface copy contract', () => {
     expect(Math.min(...pixelFontSizes)).toBeGreaterThanOrEqual(12)
   })
 
-  it('keeps live traces in chat and the Fleet modal focused on compact agent cards', () => {
+  it('keeps fleet overview and agent traces on separate full-modal screens', () => {
     expect(interfaceSource).toContain('<ResearchActivity snapshot={snapshot} onOpenAgent={openAgent} />')
     expect(interfaceSource).toContain('<h2 id="fleet-dialog-title">Fleet</h2>')
     expect(interfaceSource).not.toContain('Research fleet</h2>')
@@ -79,7 +79,11 @@ describe('interface copy contract', () => {
     expect(interfaceSource).toContain('className="bot-sailor-hat"')
     expect(interfaceSource).toContain("if (event.deltaY < 0) onBreakAutoScroll()")
     expect(interfaceSource).toContain('tabIndex={0}')
-    expect(interfaceStyles).toContain('grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr)')
+    expect(interfaceSource).toContain("className={`fleet-dialog ${props.selectedAgent ? 'agent-view' : 'fleet-view'}`}")
+    expect(interfaceSource).toContain('Back to fleet')
+    expect(interfaceSource).toContain('setSelectedAgentId(null)')
+    expect(interfaceStyles).toContain('grid-template-columns: minmax(0, 1fr)')
+    expect(interfaceStyles).not.toContain('grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr)')
   })
 
   it('makes the research ocean a functional view of live fleet state', () => {

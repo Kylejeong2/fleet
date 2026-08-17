@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import * as SelectPrimitive from '@radix-ui/react-select'
 import {
+  ArrowLeft,
   ArrowUp,
   Brain,
   Check,
@@ -164,7 +165,7 @@ function FleetHome() {
 
   useEffect(() => {
     if (fleetOpen) closeButtonRef.current?.focus()
-  }, [fleetOpen])
+  }, [fleetOpen, selectedAgentId])
 
   useEffect(() => {
     if (!snapshot?.id) return
@@ -224,10 +225,9 @@ function FleetHome() {
   )
 
   const selectedAgent = useMemo(
-    () =>
-      dialogSnapshot?.agents.find((agent) => agent.id === selectedAgentId) ??
-      dialogSnapshot?.agents[0] ??
-      null,
+    () => selectedAgentId
+      ? dialogSnapshot?.agents.find((agent) => agent.id === selectedAgentId) ?? null
+      : null,
     [dialogSnapshot, selectedAgentId],
   )
 
@@ -341,6 +341,7 @@ function FleetHome() {
                 ref={fleetButtonRef}
                 onClick={() => {
                   setDialogRunId(snapshot.id)
+                  setSelectedAgentId(null)
                   setFleetOpen(true)
                 }}
               >
@@ -415,7 +416,6 @@ function FleetHome() {
         <FleetDialog
           snapshot={dialogSnapshot}
           selectedAgent={selectedAgent}
-          selectedAgentId={selectedAgentId}
           completeCount={completeCount}
           closeButtonRef={closeButtonRef}
           dialogRef={dialogRef}
@@ -619,57 +619,68 @@ function OceanFallback({ label }: { label: string }) {
 function FleetDialog(props: {
   snapshot: RunSnapshot
   selectedAgent: AgentSnapshot | null
-  selectedAgentId: string | null
   completeCount: number
   closeButtonRef: React.RefObject<HTMLButtonElement | null>
   dialogRef: React.RefObject<HTMLElement | null>
   onClose: () => void
-  onSelectAgent: (id: string) => void
+  onSelectAgent: (id: string | null) => void
 }) {
   const workingCount = props.snapshot.agents.filter((agent) => agent.status === 'running').length
+  const selectedAgentIndex = props.selectedAgent
+    ? Math.max(0, props.snapshot.agents.indexOf(props.selectedAgent))
+    : 0
   return (
     <div className="scrim" onMouseDown={(event) => event.target === event.currentTarget && props.onClose()}>
       <section
-        className="fleet-dialog"
+        className={`fleet-dialog ${props.selectedAgent ? 'agent-view' : 'fleet-view'}`}
         ref={props.dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="fleet-dialog-title"
+        aria-labelledby={props.selectedAgent ? 'agent-dialog-title' : 'fleet-dialog-title'}
       >
-        <div className="fleet-main">
-          <header className="fleet-head">
-            <h2 id="fleet-dialog-title">Fleet</h2>
-            <span>{workingCount} working · {props.completeCount} finished</span>
-            <button ref={props.closeButtonRef} type="button" onClick={props.onClose} aria-label="Close fleet">×</button>
-          </header>
-          <div className="objective-block">
-            <div>
-              <strong>{trimQuestion(props.snapshot.question)}</strong>
+        {props.selectedAgent ? (
+          <TracePanel
+            agent={props.selectedAgent}
+            index={selectedAgentIndex}
+            closeButtonRef={props.closeButtonRef}
+            onBack={() => props.onSelectAgent(null)}
+            onClose={props.onClose}
+          />
+        ) : (
+          <div className="fleet-main">
+            <header className="fleet-head">
+              <h2 id="fleet-dialog-title">Fleet</h2>
+              <span>{workingCount} working · {props.completeCount} finished</span>
+              <button ref={props.closeButtonRef} type="button" onClick={props.onClose} aria-label="Close fleet">×</button>
+            </header>
+            <div className="objective-block">
+              <div>
+                <strong>{trimQuestion(props.snapshot.question)}</strong>
+              </div>
+              <div
+                className="overall-progress"
+                role="progressbar"
+                aria-label="Fleet progress"
+                aria-valuemin={0}
+                aria-valuemax={props.snapshot.agentCount}
+                aria-valuenow={props.completeCount}
+              >
+                <i style={{ width: `${(props.completeCount / props.snapshot.agentCount) * 100}%` }} />
+              </div>
             </div>
-            <div
-              className="overall-progress"
-              role="progressbar"
-              aria-label="Fleet progress"
-              aria-valuemin={0}
-              aria-valuemax={props.snapshot.agentCount}
-              aria-valuenow={props.completeCount}
-            >
-              <i style={{ width: `${(props.completeCount / props.snapshot.agentCount) * 100}%` }} />
+            <div className="agent-grid" aria-label="Research agents">
+              {props.snapshot.agents.length ? props.snapshot.agents.map((agent, index) => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  index={index}
+                  selected={false}
+                  onSelect={() => props.onSelectAgent(agent.id)}
+                />
+              )) : <AgentSkeletons count={Math.min(props.snapshot.agentCount, 12)} />}
             </div>
           </div>
-          <div className="agent-grid" aria-label="Research agents">
-            {props.snapshot.agents.length ? props.snapshot.agents.map((agent, index) => (
-              <AgentCard
-                key={agent.id}
-                agent={agent}
-                index={index}
-                selected={(props.selectedAgentId ?? props.snapshot.agents[0]?.id) === agent.id}
-                onSelect={() => props.onSelectAgent(agent.id)}
-              />
-            )) : <AgentSkeletons count={Math.min(props.snapshot.agentCount, 12)} />}
-          </div>
-        </div>
-        <TracePanel agent={props.selectedAgent} index={Math.max(0, props.snapshot.agents.indexOf(props.selectedAgent!))} />
+        )}
       </section>
     </div>
   )
@@ -890,33 +901,58 @@ function AgentSkeletons({ count }: { count: number }) {
   ))
 }
 
-function TracePanel({ agent, index }: { agent: AgentSnapshot | null; index: number }) {
-  const sourceCount = agent ? uniqueSourceCount(agent.trace) : 0
+function TracePanel({
+  agent,
+  index,
+  closeButtonRef,
+  onBack,
+  onClose,
+}: {
+  agent: AgentSnapshot
+  index: number
+  closeButtonRef: React.RefObject<HTMLButtonElement | null>
+  onBack: () => void
+  onClose: () => void
+}) {
+  const sourceCount = uniqueSourceCount(agent.trace)
   return (
     <aside className="trace-panel" aria-label="Selected agent trace">
-      <header className="trace-head"><strong>Agent trace</strong><span>{agent ? displayStatus(agent.status) : 'Planning'}</span></header>
-      {agent ? (
-        <>
-          <div className="trace-context">
-            <div className="trace-agent"><Bot index={index} active={agent.status === 'running'} /><div><strong>{agentNames[index % agentNames.length]}</strong><span>{agent.activity}</span></div></div>
-            <div className="trace-label">Current objective</div>
-            <p className="trace-objective">{agent.objective}</p>
-          </div>
-          <div className="trace-events">
-            <AgentTimeline agent={agent} />
-            {agent.finding ? (
-              <>
-                <div className="trace-label finding-label">Finding</div>
-                <div className="trace-finding subagent-markdown">
-                  <Markdown remarkPlugins={[remarkGfm]}>{agent.finding}</Markdown>
-                </div>
-              </>
-            ) : null}
-            {agent.error ? <p className="inline-error">{agent.error}</p> : null}
-          </div>
-          <footer className="trace-foot"><span>{sourceCount} {sourceCount === 1 ? 'source' : 'sources'}</span><span>{agent.trace.length} tool {agent.trace.length === 1 ? 'call' : 'calls'}</span></footer>
-        </>
-      ) : <p className="empty-agent">The fleet is assigning research objectives.</p>}
+      <header className="trace-head">
+        <button className="trace-back-button" type="button" onClick={onBack}>
+          <ArrowLeft aria-hidden="true" size={17} strokeWidth={1.8} />
+          Back to fleet
+        </button>
+        <strong id="agent-dialog-title">Agent trace</strong>
+        <span>{displayStatus(agent.status)}</span>
+        <button ref={closeButtonRef} className="trace-close-button" type="button" onClick={onClose} aria-label="Close agent trace">×</button>
+      </header>
+      <div className="trace-context">
+        <div className="trace-content-column">
+          <div className="trace-agent"><Bot index={index} active={agent.status === 'running'} /><div><strong>{agentNames[index % agentNames.length]}</strong><span>{agent.activity}</span></div></div>
+          <div className="trace-label">Current objective</div>
+          <p className="trace-objective">{agent.objective}</p>
+        </div>
+      </div>
+      <div className="trace-events">
+        <div className="trace-content-column">
+          <AgentTimeline agent={agent} />
+          {agent.finding ? (
+            <>
+              <div className="trace-label finding-label">Finding</div>
+              <div className="trace-finding subagent-markdown">
+                <Markdown remarkPlugins={[remarkGfm]}>{agent.finding}</Markdown>
+              </div>
+            </>
+          ) : null}
+          {agent.error ? <p className="inline-error">{agent.error}</p> : null}
+        </div>
+      </div>
+      <footer className="trace-foot">
+        <div className="trace-content-column">
+          <span>{sourceCount} {sourceCount === 1 ? 'source' : 'sources'}</span>
+          <span>{agent.trace.length} tool {agent.trace.length === 1 ? 'call' : 'calls'}</span>
+        </div>
+      </footer>
     </aside>
   )
 }
