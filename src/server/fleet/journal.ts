@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { z } from 'zod'
 import {
   createEventSeq,
+  publicRunInput,
   type CreateRunInput,
   type FleetEvent,
   parseFleetEvent,
@@ -81,7 +82,7 @@ export class FleetJournal {
         runId: args.runId,
         sequence: createEventSeq(1),
         at: new Date().toISOString(),
-        ...args.input,
+        ...publicRunInput(args.input),
       }
       this.#database
         .prepare('INSERT INTO fleet_events (run_id, sequence, event_json) VALUES (?, ?, ?)')

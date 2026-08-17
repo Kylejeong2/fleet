@@ -6,6 +6,8 @@ Fleet supports a local single-process runtime and a durable Vercel runtime.
 
 Provider readiness depends on the selected profile. Development requires no external credentials. Live workers require Sail and Browserbase keys. Fully live runs also require an AI Gateway key. Missing configuration must reject a run before paid work starts.
 
+The deployment funds runs of up to 10 agents. Requests above that threshold must include a complete Sail, Browserbase, and AI Gateway credential set. The browser settings UI keeps this set in local storage and sends it only for self-funded runs. Server-side validation enforces the same boundary, and public run events explicitly omit credentials.
+
 ## Runtime selection
 
 With no override, Fleet uses Workflow when `VERCEL` is present and local execution elsewhere. Set `FLEET_EXECUTION_MODE=workflow` or `local` only to override that detection.
@@ -21,6 +23,7 @@ Do not run multiple local-mode instances against the same SQLite file over netwo
 ## Limits
 
 - At most 100 agents per run.
+- Runs above 10 agents require caller-supplied provider credentials.
 - At most 8 workers execute concurrently per run.
 - Worker turns and fetched content are bounded by the provider adapters.
 - One failed worker does not cancel its siblings.
@@ -36,7 +39,8 @@ SSE consumers recover by replaying after their last committed sequence. A missin
 
 ## Security
 
-- Keep provider keys server-side.
+- Keep deployment provider keys server-side. Treat caller-supplied keys as request secrets.
+- Never include caller-supplied keys in events, snapshots, responses, or logs.
 - Never write authorization headers or raw provider responses to public events.
 - Validate fetched URLs and external JSON.
 - Bound stored excerpts and public error strings.

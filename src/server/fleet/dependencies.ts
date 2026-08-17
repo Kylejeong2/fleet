@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { RunProfile } from '../../lib/fleet-protocol'
+import type { ProviderCredentials, RunProfile } from '../../lib/fleet-protocol'
 import type { ResearchTools, Synthesizer, WorkerModel } from './ports'
 import { BrowserbaseResearchTools } from './providers/browserbase'
 import {
@@ -30,6 +30,7 @@ export type FleetDependencies = {
 export const createFleetDependencies = (
   profile: RunProfile,
   rawEnvironment: NodeJS.ProcessEnv = process.env,
+  providerCredentials?: ProviderCredentials,
 ): FleetDependencies => {
   const environment = EnvironmentSchema.parse(rawEnvironment)
   if (profile === 'development') {
@@ -39,26 +40,32 @@ export const createFleetDependencies = (
       synthesizer: new DevelopmentSynthesizer(),
     }
   }
-  if (!environment.SAIL_API_KEY || !environment.BROWSERBASE_API_KEY) {
+  const sailApiKey = providerCredentials?.sailApiKey ?? environment.SAIL_API_KEY
+  const browserbaseApiKey = providerCredentials?.browserbaseApiKey ?? environment.BROWSERBASE_API_KEY
+  const aiGatewayApiKey = providerCredentials?.aiGatewayApiKey ?? environment.AI_GATEWAY_API_KEY
+  if (!sailApiKey || !browserbaseApiKey) {
     throw new ProfileNotReadyError(
       'Live workers require SAIL_API_KEY and BROWSERBASE_API_KEY.',
     )
   }
   const worker = new SailWorkerModel(
-    environment.SAIL_API_KEY,
+    sailApiKey,
     environment.SAIL_BASE_URL,
     environment.SAIL_RESEARCH_MODEL,
   )
-  const tools = new BrowserbaseResearchTools(environment.BROWSERBASE_API_KEY)
+  const tools = new BrowserbaseResearchTools(browserbaseApiKey)
   if (profile === 'live-workers') {
     return { worker, tools, synthesizer: new DevelopmentSynthesizer() }
   }
-  if (!environment.AI_GATEWAY_API_KEY) {
+  if (!aiGatewayApiKey) {
     throw new ProfileNotReadyError('Live mode requires AI_GATEWAY_API_KEY.')
   }
   return {
     worker,
     tools,
-    synthesizer: new GatewaySynthesizer(environment.AI_GATEWAY_ORCHESTRATOR_MODEL),
+    synthesizer: new GatewaySynthesizer(
+      environment.AI_GATEWAY_ORCHESTRATOR_MODEL,
+      aiGatewayApiKey,
+    ),
   }
 }

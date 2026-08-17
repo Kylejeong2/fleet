@@ -62,3 +62,7 @@ AI_GATEWAY_ORCHESTRATOR_MODEL=openai/gpt-5.6-sol
 | `live` | Sail | Browserbase | AI Gateway | Complete provider-backed research. |
 
 The snapshot records the profile and synthesizer name. A deterministic answer cannot present itself as a verified Gateway result.
+
+## Self-funded fleets
+
+The hosted product includes up to 10 agents using deployment credentials. Larger runs require a caller-supplied key for all three live providers. The UI persists that credential set in browser local storage and attaches it only to requests above the included tier. Caller credentials override the matching deployment credentials for that run and are deliberately excluded from Fleet's public event and snapshot schemas.

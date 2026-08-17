@@ -20,6 +20,7 @@ export class FleetService {
     readonly journal: FleetJournal,
     private readonly coordinatorFactory: (
       profile: RunProfile,
+      providerCredentials: CreateRunInput['providerCredentials'],
     ) => RunCoordinator,
   ) {}
 
@@ -27,7 +28,10 @@ export class FleetService {
     input: CreateRunInput
     idempotencyKey: string | null
   }): RunSnapshot {
-    const coordinator = this.coordinatorFactory(args.input.profile)
+    const coordinator = this.coordinatorFactory(
+      args.input.profile,
+      args.input.providerCredentials,
+    )
     const runId = createRunId()
     const result = this.journal.createRun({ runId, ...args })
     if (result.kind === 'conflict') {
@@ -61,9 +65,19 @@ export const createFleetService = (args?: {
   environment?: NodeJS.ProcessEnv
 }): FleetService => {
   const journal = new FleetJournal(args?.databasePath)
-  return new FleetService(journal, (profile) => {
-    const dependencies = createFleetDependencies(profile, args?.environment)
-    return new RunCoordinator(journal, dependencies.worker, dependencies.tools, dependencies.synthesizer)
+  return new FleetService(journal, (profile, providerCredentials) => {
+    const dependencies = createFleetDependencies(
+      profile,
+      args?.environment,
+      providerCredentials,
+    )
+    return new RunCoordinator(
+      journal,
+      dependencies.worker,
+      dependencies.tools,
+      dependencies.synthesizer,
+      providerCredentials,
+    )
   })
 }
 

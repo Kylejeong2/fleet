@@ -1,4 +1,4 @@
-import { gateway, streamText } from 'ai'
+import { createGateway, streamText } from 'ai'
 import type { Synthesizer, SynthesisInput, SynthesisStreamPart } from '../ports'
 
 export const ORCHESTRATOR_REASONING = 'medium' as const
@@ -50,14 +50,16 @@ export const buildSynthesisPrompt = (input: SynthesisInput): string =>
 
 export class GatewaySynthesizer implements Synthesizer {
   readonly name: string
+  readonly #model: ReturnType<ReturnType<typeof createGateway>>
 
-  constructor(private readonly model = 'openai/gpt-5.6-sol') {
+  constructor(private readonly model = 'openai/gpt-5.6-sol', apiKey?: string) {
     this.name = `vercel-ai-gateway:${model}`
+    this.#model = createGateway(apiKey ? { apiKey } : {})(model)
   }
 
   async *stream(input: SynthesisInput, signal: AbortSignal): AsyncIterable<SynthesisStreamPart> {
     const result = streamText({
-      model: gateway(this.model),
+      model: this.#model,
       abortSignal: signal,
       reasoning: ORCHESTRATOR_REASONING,
       system: SYNTHESIS_SYSTEM_PROMPT,

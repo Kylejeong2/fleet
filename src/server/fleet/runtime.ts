@@ -3,6 +3,7 @@ import {
   createEventSeq,
   materializeFleetEvent,
   parseRunId,
+  publicRunInput,
   type CreateRunInput,
   type FleetEventDraft,
   type RunId,
@@ -196,7 +197,7 @@ const acceptedSnapshot = (runId: RunId, input: CreateRunInput): RunSnapshot => {
     runId,
     sequence: createEventSeq(1),
     at: new Date().toISOString(),
-    ...input,
+    ...publicRunInput(input),
   }])
   if (!snapshot) throw new Error('Could not create the accepted run snapshot.')
   return snapshot
