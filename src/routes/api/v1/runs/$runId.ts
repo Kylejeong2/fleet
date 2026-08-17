@@ -49,6 +49,37 @@ export const Route = createFileRoute('/api/v1/runs/$runId')({
           throw error
         }
       },
+      DELETE: async ({ params }) => {
+        try {
+          const actor = await requireFleetActor()
+          return Response.json(
+            await getFleetRuntime().cancelRun(actor, parseRunId(params.runId)),
+          )
+        } catch (error) {
+          if (error instanceof z.ZodError) {
+            return Response.json({ error: 'Invalid run ID' }, { status: 400 })
+          }
+          if (error instanceof UnauthenticatedError) {
+            return Response.json({ error: error.message }, { status: 401 })
+          }
+          if (error instanceof RunNotFoundError) {
+            return Response.json({ error: error.message }, { status: 404 })
+          }
+          if (error instanceof AdmissionRejectedError) {
+            return Response.json(
+              { error: error.message },
+              {
+                status: 429,
+                headers: { 'retry-after': String(error.retryAfterSeconds) },
+              },
+            )
+          }
+          if (error instanceof ProfileNotReadyError) {
+            return Response.json({ error: error.message }, { status: 503 })
+          }
+          throw error
+        }
+      },
     },
   },
 })

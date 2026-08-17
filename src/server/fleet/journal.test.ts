@@ -64,4 +64,18 @@ describe('FleetJournal', () => {
     expect(journal.ownsRun(first.runId, 'tenant_2')).toBe(false)
     journal.close()
   })
+
+  it('removes expired ownership, events, and idempotency together', () => {
+    const journal = new FleetJournal(':memory:')
+    const result = journal.createRun({
+      runId: createRunId(),
+      input,
+      idempotencyKey: 'expired',
+      actor,
+    })
+    expect(journal.cleanupExpired(new Date(Date.now() + 1_000))).toBe(1)
+    expect(journal.read(result.runId)).toEqual([])
+    expect(journal.ownsRun(result.runId, actor.tenantId)).toBe(false)
+    journal.close()
+  })
 })

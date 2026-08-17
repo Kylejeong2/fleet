@@ -69,6 +69,7 @@ const eventKinds: FleetEvent['kind'][] = [
   'synthesis.delta',
   'run.completed',
   'run.failed',
+  'run.cancelled',
 ]
 
 const agentNames = [
@@ -137,6 +138,7 @@ function FleetApp() {
   const [fleetOpen, setFleetOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const [theme, setTheme] = useState<Theme>('light')
   const fleetButtonRef = useRef<HTMLButtonElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
@@ -156,7 +158,7 @@ function FleetApp() {
   }, [])
 
   useEffect(() => {
-    if (!snapshot || snapshot.status === 'completed' || snapshot.status === 'failed') {
+    if (!snapshot || isTerminalRun(snapshot)) {
       return
     }
     // Subscribe once per run. Reconnecting on every sequence would replay events and churn the UI.
@@ -324,6 +326,27 @@ function FleetApp() {
     }
   }
 
+  async function cancelResearch() {
+    if (!snapshot || isTerminalRun(snapshot) || cancelling) return
+    setCancelling(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/v1/runs/${snapshot.id}`, { method: 'DELETE' })
+      const body: unknown = await response.json()
+      if (!response.ok) {
+        const message = typeof body === 'object' && body && 'error' in body
+          ? String(body.error)
+          : 'Fleet could not cancel this run.'
+        throw new Error(message)
+      }
+      setSnapshot(RunSnapshotSchema.parse(body))
+    } catch (cancelError) {
+      setError(errorMessage(cancelError))
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   function closeFleet() {
     setFleetOpen(false)
     requestAnimationFrame(() => fleetButtonRef.current?.focus())
@@ -358,6 +381,17 @@ function FleetApp() {
             </span>
           ) : null}
           <div className="header-actions">
+            {snapshot && !isTerminalRun(snapshot) ? (
+              <button
+                className="cancel-run-button"
+                type="button"
+                disabled={cancelling}
+                onClick={cancelResearch}
+              >
+                <XCircle aria-hidden="true" size={15} strokeWidth={1.8} />
+                {cancelling ? 'Stopping' : 'Stop'}
+              </button>
+            ) : null}
             {snapshot ? (
               <button
                 className="view-fleet-button"
@@ -425,9 +459,10 @@ function FleetApp() {
                   event.currentTarget.form?.requestSubmit()
                 }
               }}
-              placeholder="Ask a follow-up question"
+              placeholder={isTerminalRun(snapshot) ? 'Ask a follow-up question' : 'Wait for this fleet or stop it'}
+              disabled={!isTerminalRun(snapshot)}
             />
-            <button type="submit" disabled={submitting || question.trim().length < 3}>
+            <button type="submit" disabled={submitting || !isTerminalRun(snapshot) || question.trim().length < 3}>
               <ArrowUp aria-hidden="true" size={15} strokeWidth={2} />
               <span className="sr-only">Ask follow-up</span>
             </button>
@@ -1209,9 +1244,13 @@ function uniqueSourceCount(trace: ToolTrace[]): number {
 function responseTitle(snapshot: RunSnapshot): string {
   if (snapshot.status === 'completed') return 'Research complete'
   if (snapshot.status === 'failed') return 'Research stopped'
+  if (snapshot.status === 'cancelled') return 'Research cancelled'
   if (snapshot.status === 'synthesizing') return 'Orchestrator is synthesizing the evidence'
   return 'Orchestrator is thinking'
 }
+
+const isTerminalRun = (snapshot: RunSnapshot): boolean =>
+  snapshot.status === 'completed' || snapshot.status === 'failed' || snapshot.status === 'cancelled'
 
 function displayStatus(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1)

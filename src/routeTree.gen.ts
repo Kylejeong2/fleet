@@ -4,6 +4,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiInternalCleanupRouteImport } from './routes/api/internal/cleanup'
 import { Route as ApiV1RunsRouteImport } from './routes/api/v1/runs'
 import { Route as ApiV1UsageRouteImport } from './routes/api/v1/usage'
 import { Route as ApiV1RunsRunIdRouteImport } from './routes/api/v1/runs/$runId'
@@ -12,6 +13,11 @@ import { Route as ApiV1RunsRunIdEventsRouteImport } from './routes/api/v1/runs/$
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInternalCleanupRoute = ApiInternalCleanupRouteImport.update({
+  id: '/api/internal/cleanup',
+  path: '/api/internal/cleanup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1RunsRoute = ApiV1RunsRouteImport.update({
@@ -37,6 +43,7 @@ const ApiV1RunsRunIdEventsRoute = ApiV1RunsRunIdEventsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/internal/cleanup': typeof ApiInternalCleanupRoute
   '/api/v1/runs': typeof ApiV1RunsRouteWithChildren
   '/api/v1/usage': typeof ApiV1UsageRoute
   '/api/v1/runs/$runId': typeof ApiV1RunsRunIdRouteWithChildren
@@ -44,6 +51,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/internal/cleanup': typeof ApiInternalCleanupRoute
   '/api/v1/runs': typeof ApiV1RunsRouteWithChildren
   '/api/v1/usage': typeof ApiV1UsageRoute
   '/api/v1/runs/$runId': typeof ApiV1RunsRunIdRouteWithChildren
@@ -52,6 +60,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/internal/cleanup': typeof ApiInternalCleanupRoute
   '/api/v1/runs': typeof ApiV1RunsRouteWithChildren
   '/api/v1/usage': typeof ApiV1UsageRoute
   '/api/v1/runs/$runId': typeof ApiV1RunsRunIdRouteWithChildren
@@ -61,6 +70,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/api/internal/cleanup'
     | '/api/v1/runs'
     | '/api/v1/usage'
     | '/api/v1/runs/$runId'
@@ -68,6 +78,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/api/internal/cleanup'
     | '/api/v1/runs'
     | '/api/v1/usage'
     | '/api/v1/runs/$runId'
@@ -75,6 +86,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/api/internal/cleanup'
     | '/api/v1/runs'
     | '/api/v1/usage'
     | '/api/v1/runs/$runId'
@@ -83,6 +95,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiInternalCleanupRoute: typeof ApiInternalCleanupRoute
   ApiV1RunsRoute: typeof ApiV1RunsRouteWithChildren
   ApiV1UsageRoute: typeof ApiV1UsageRoute
 }
@@ -94,6 +107,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/cleanup': {
+      id: '/api/internal/cleanup'
+      path: '/api/internal/cleanup'
+      fullPath: '/api/internal/cleanup'
+      preLoaderRoute: typeof ApiInternalCleanupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/runs': {
@@ -153,6 +173,7 @@ const ApiV1RunsRouteWithChildren = ApiV1RunsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiInternalCleanupRoute: ApiInternalCleanupRoute,
   ApiV1RunsRoute: ApiV1RunsRouteWithChildren,
   ApiV1UsageRoute: ApiV1UsageRoute,
 }

@@ -57,7 +57,7 @@ const logAgentId = (agentId: AgentId): string =>
   agentId.slice(agentId.lastIndexOf(':') + 1)
 
 export class RunCoordinator {
-  readonly #active = new Set<RunId>()
+  readonly #active = new Map<RunId, AbortController>()
 
   constructor(
     private readonly journal: FleetJournal,
@@ -79,8 +79,9 @@ export class RunCoordinator {
     const researchQuestion = input.context
       ? `${input.context}\n\nCurrent follow-up question: ${input.question}`
       : input.question
-    this.#active.add(runId)
-    const signal = new AbortController().signal
+    const controller = new AbortController()
+    const { signal } = controller
+    this.#active.set(runId, controller)
     fleetLog('info', 'run.started', {
       run: runId,
       profile: input.profile,
@@ -143,6 +144,7 @@ export class RunCoordinator {
         },
       )
       await Promise.all(runners)
+      if (signal.aborted) return
       this.journal.append(runId, (metadata) => ({
         kind: 'orchestrator.activity',
         runId,
@@ -181,6 +183,7 @@ export class RunCoordinator {
         { question: researchQuestion, findings, userId: context.userId, runId },
         signal,
       )) {
+        if (signal.aborted) return
         if (part.kind === 'reasoning-delta') {
           this.journal.append(runId, (metadata) => ({
             kind: 'orchestrator.reasoning.delta',
@@ -200,6 +203,7 @@ export class RunCoordinator {
           await context.onUsage?.(part.usage)
         }
       }
+      if (signal.aborted) return
       this.journal.append(runId, (metadata) => ({
         kind: 'run.completed',
         runId,
@@ -218,6 +222,7 @@ export class RunCoordinator {
         failed: input.agentCount - findings.length,
       })
     } catch (error) {
+      if (signal.aborted) return
       const publicError = error instanceof Error ? error.message : 'Research failed'
       fleetLog('error', 'run.failed', {
         run: runId,
@@ -233,6 +238,18 @@ export class RunCoordinator {
     } finally {
       this.#active.delete(runId)
     }
+  }
+
+  cancel(runId: RunId): boolean {
+    const controller = this.#active.get(runId)
+    if (!controller) return false
+    controller.abort()
+    this.journal.append(runId, (metadata) => ({
+      kind: 'run.cancelled',
+      runId,
+      ...metadata,
+    }))
+    return true
   }
 
   async #runAgent(args: {
@@ -258,6 +275,7 @@ export class RunCoordinator {
     const history: Array<{ call: ResearchToolCall; result: ResearchToolResult }> = []
     try {
       for (let turn = 0; turn < 8; turn += 1) {
+        if (args.signal.aborted) return null
         this.journal.append(args.runId, (metadata) => ({
           kind: 'agent.activity',
           runId: args.runId,
@@ -293,6 +311,7 @@ export class RunCoordinator {
           },
           args.signal,
         )
+        if (args.signal.aborted) return null
         if (response.usage) await args.onUsage?.(response.usage)
         fleetLog('info', 'worker.responded', {
           run: args.runId,
@@ -382,6 +401,7 @@ export class RunCoordinator {
             contentChars: result.kind === 'fetch' ? result.text.length : undefined,
           })
         } catch (error) {
+          if (args.signal.aborted) throw error
           const message = error instanceof Error ? error.message : 'Tool call failed'
           fleetLog('error', 'tool.failed', {
             run: args.runId,
@@ -409,6 +429,7 @@ export class RunCoordinator {
       }
       throw new Error('Agent exceeded its tool-turn limit')
     } catch (error) {
+      if (args.signal.aborted) return null
       const message = error instanceof Error ? error.message : 'Agent failed'
       fleetLog('error', 'agent.failed', {
         run: args.runId,

@@ -53,6 +53,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .run-meta { display: flex; height: 21px; flex: 0 0 auto; align-items: center; gap: 7px; color: var(--muted); font-size: 14px; line-height: 1; white-space: nowrap; }
 .view-fleet-button { display: flex; height: 30px; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid #cfcfcb; border-radius: 7px; background: #fff; box-shadow: 0 1px 1px rgb(0 0 0 / 4%); cursor: pointer; white-space: nowrap; }
 .view-fleet-button:hover { background: var(--wash); }
+.cancel-run-button { display: flex; height: 30px; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid #e0b7b3; border-radius: 7px; background: #fff8f7; color: #a83f37; cursor: pointer; white-space: nowrap; }
+.cancel-run-button:hover { border-color: #d4938d; background: #fff1ef; }
+.cancel-run-button:disabled { cursor: wait; opacity: .62; }
 .theme-toggle { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid #cfcfcb; border-radius: 7px; background: #fff; color: #555651; cursor: pointer; transition: border-color .14s, background .14s, color .14s; }
 .theme-toggle:hover { border-color: #b9bab5; background: var(--wash); color: var(--ink); }
 .fleet-mark { position: relative; display: inline-block; width: 15px; height: 13px; }

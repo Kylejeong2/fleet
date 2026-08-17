@@ -37,7 +37,7 @@ export const createFleetEventStream = (
             cursor = event.sequence
           }
           const snapshot = service.getRun(actor, runId)
-          if (snapshot.status === 'completed' || snapshot.status === 'failed') {
+          if (snapshot.status === 'completed' || snapshot.status === 'failed' || snapshot.status === 'cancelled') {
             closed = true
             unsubscribe()
             controller.close()

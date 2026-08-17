@@ -223,6 +223,7 @@ export const FleetEventSchema = z.discriminatedUnion('kind', [
   z.object({ ...EventBase, kind: z.literal('synthesis.delta'), delta: z.string() }),
   z.object({ ...EventBase, kind: z.literal('run.completed'), answer: z.string() }),
   z.object({ ...EventBase, kind: z.literal('run.failed'), error: z.string() }),
+  z.object({ ...EventBase, kind: z.literal('run.cancelled') }),
 ])
 export type FleetEvent = z.infer<typeof FleetEventSchema>
 export type FleetEventDraft = FleetEvent extends infer Event
@@ -254,7 +255,7 @@ export const RunSnapshotSchema = z.object({
   agentCount: z.number().int(),
   concurrency: z.number().int(),
   profile: RunProfileSchema,
-  status: z.enum(['running', 'synthesizing', 'completed', 'failed']),
+  status: z.enum(['running', 'synthesizing', 'completed', 'failed', 'cancelled']),
   orchestratorTrace: z.array(OrchestratorEntrySchema),
   orchestratorReasoning: z.string(),
   agents: z.array(AgentSnapshotSchema),
