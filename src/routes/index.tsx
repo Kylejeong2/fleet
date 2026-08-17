@@ -323,10 +323,10 @@ function FleetHome() {
   return (
     <LazyMotion features={domAnimation} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
-      <section className={`conversation ${snapshot ? 'has-run' : 'ocean-home'}`} aria-label="Fleet research chat">
+      <section className={`conversation ${snapshot ? 'has-run' : 'ocean-home'}`} aria-label="Fleet chat">
         <header className="conversation-header">
           <FleetBoatMark />
-          <span className="conversation-title">Fleet research</span>
+          <span className="conversation-title">Fleet</span>
           {snapshot ? (
             <span className="run-meta">
               {snapshot.agentCount} {snapshot.agentCount === 1 ? 'agent' : 'agents'}
