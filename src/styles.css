@@ -73,7 +73,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .intro::before { position: absolute; top: -26px; left: 50%; width: 310px; height: 100px; border-radius: 50%; background: #65fff0; opacity: .08; filter: blur(45px); content: ""; transform: translateX(-50%); }
 .intro h1, .intro p { margin: 0; }
 .intro h1 { color: #f5fffd; font-size: clamp(42px, 4.9vw, 66px); font-weight: 510; letter-spacing: -.058em; line-height: .98; text-shadow: 0 2px 22px rgb(78 255 236 / 13%), 0 18px 72px rgb(0 0 0 / 55%); text-wrap: balance; }
-.intro p { max-width: 720px; color: #b8d2cf; font-size: clamp(16px, 1.35vw, 18px); line-height: 1.55; text-shadow: 0 2px 14px #02090e, 0 0 34px #02090e; text-wrap: balance; }
+.intro p { max-width: none; color: #b8d2cf; font-size: clamp(16px, 1.35vw, 18px); line-height: 1.55; white-space: nowrap; text-shadow: 0 2px 14px #02090e, 0 0 34px #02090e; }
 .research-composer { position: relative; z-index: 5; width: min(720px, 100%); margin: 0 auto; padding: 16px; border: 1px solid rgb(155 255 244 / 23%); border-radius: 20px; background: linear-gradient(145deg, rgb(8 29 36 / 88%), rgb(3 15 23 / 8%)); box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 34px 110px rgb(0 0 0 / 48%), 0 0 0 1px rgb(61 212 199 / 4%), 0 0 80px rgb(49 219 203 / 8%); backdrop-filter: blur(26px) saturate(125%); }
 .research-composer::after { position: absolute; right: 15%; bottom: -1px; left: 15%; height: 1px; background: linear-gradient(90deg, transparent, #75fff2, transparent); opacity: .72; content: ""; }
 .research-composer textarea { display: block; width: 100%; min-height: 106px; padding: 3px 4px; resize: none; border: 0; outline: 0; background: transparent; color: #effffc; font-size: 18px; line-height: 1.5; }

@@ -115,5 +115,7 @@ describe('interface copy contract', () => {
     expect(interfaceStyles).toContain('.ocean-canvas')
     expect(interfaceStyles).toContain('.ocean-atmosphere')
     expect(interfaceStyles).toContain('.ocean-agent-target.retrying')
+    expect(interfaceStyles).toMatch(/\.intro p \{[^}]*white-space: nowrap/)
+    expect(interfaceStyles).toMatch(/@media \(max-width: 720px\)[\s\S]*\.intro p \{[^}]*white-space: normal/)
   })
 })
