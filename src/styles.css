@@ -281,6 +281,9 @@ details[open] > summary .reasoning-chevron { transform: rotate(180deg); }
 .bot-head, .bot-body { stroke: #343936; stroke-width: 1.35; }
 .bot-face { fill: #171d1a; stroke: #424945; stroke-width: .8; }
 .bot-ear { stroke: #343936; stroke-width: 1.1; }
+.bot-hat-crown { fill: #f8f8f3; stroke: #343936; stroke-width: 1; stroke-linejoin: round; }
+.bot-hat-band { fill: #315b70; stroke: #343936; stroke-width: .9; stroke-linejoin: round; }
+.bot-hat-emblem { fill: none; stroke: #f3d889; stroke-width: .85; stroke-linecap: round; }
 .bot-antenna-stem, .bot-arm, .bot-leg { fill: none; stroke: #343936; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .bot-arm { transform-origin: 11px 32px; }
 .bot-arm.right { transform-origin: 41px 32px; }

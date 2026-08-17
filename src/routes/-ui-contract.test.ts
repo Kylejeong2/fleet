@@ -75,6 +75,7 @@ describe('interface copy contract', () => {
     expect(interfaceSource).toContain('<AgentTimeline agent={props.agent} compact />')
     expect(interfaceSource).toContain('<AgentTimeline agent={agent} />')
     expect(interfaceSource).toContain('<Markdown remarkPlugins={[remarkGfm]}>{agent.finding}</Markdown>')
+    expect(interfaceSource).toContain('className="bot-sailor-hat"')
     expect(interfaceSource).toContain("if (event.deltaY < 0) onBreakAutoScroll()")
     expect(interfaceSource).toContain('tabIndex={0}')
     expect(interfaceStyles).toContain('grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr)')

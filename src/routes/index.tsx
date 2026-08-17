@@ -999,6 +999,11 @@ function Bot({ index, active }: { index: number; active: boolean }) {
         <circle className="bot-ear" cx="10" cy="23" r="3.2" fill={palette.accentSoft} />
         <circle className="bot-ear right" cx="42" cy="23" r="3.2" fill={palette.accentSoft} />
         <rect className="bot-head" x="11" y="11" width="30" height="24" rx="9" fill={`url(#${gradientId})`} />
+        <g className="bot-sailor-hat">
+          <path className="bot-hat-crown" d="M16.3 12.4c1.2-4.1 4.2-5.9 9.7-5.9s8.5 1.8 9.7 5.9c-6.5 1.5-12.9 1.5-19.4 0Z" />
+          <path className="bot-hat-band" d="M14.2 12.3c7.8 2.4 15.8 2.4 23.6 0l-1 3.8c-7.2 2-14.4 2-21.6 0Z" />
+          <path className="bot-hat-emblem" d="M26 8.2v3.4m-1.8-1.2h3.6" />
+        </g>
         <rect className="bot-face" x="15" y="16" width="22" height="13" rx="5" />
         <m.g
           className="bot-eyes"
