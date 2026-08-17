@@ -53,4 +53,30 @@ describe('Gateway synthesis prompt', () => {
       { kind: 'text-delta', delta: '# Final answer' },
     ])
   })
+
+  it('falls back to token accounting when generation cost is unavailable', async () => {
+    async function* source() {
+      yield {
+        type: 'finish',
+        totalUsage: { inputTokens: 120, outputTokens: 30 },
+      }
+    }
+
+    const parts = []
+    for await (const part of mapGatewayStream(source(), { model: 'test/model' })) {
+      parts.push(part)
+    }
+
+    expect(parts).toHaveLength(1)
+    expect(parts[0]).toMatchObject({
+      kind: 'usage',
+      usage: {
+        inputTokens: 120,
+        outputTokens: 30,
+        costUsd: null,
+        provider: 'vercel-ai-gateway',
+        model: 'test/model',
+      },
+    })
+  })
 })

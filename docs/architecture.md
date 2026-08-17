@@ -6,12 +6,13 @@ The same HTTP contract has two runtime adapters. Local development uses a single
 
 ## Caller contract
 
-Authenticated clients use three operations.
+Authenticated clients use four operations.
 
 ```http
 POST /api/v1/runs
 GET /api/v1/runs/:runId
 GET /api/v1/runs/:runId/events
+GET /api/v1/usage
 ```
 
 `POST /api/v1/runs` accepts a question, an agent count, and an execution mode. It returns a run snapshot before provider work finishes. The request accepts an `Idempotency-Key` header. Repeating the same request with the same key returns the first run.
@@ -94,7 +95,9 @@ The main conversation owns the live orchestrator messages, subagent reasoning su
 
 ## Production boundaries
 
-Vercel Workflow supplies durable orchestration, queueing, retry, and event streaming. Redis stores HTTP idempotency reservations and the minimal ownership record; Fleet does not use it as a queue or event broker. Cancellation, encrypted artifacts, tenant admission limits, and retention controls remain separate production concerns.
+Vercel Workflow supplies durable orchestration, queueing, retry, and event streaming. Redis stores HTTP idempotency reservations, ownership, expiring admission leases, and per-user usage counters; Fleet does not use it as a queue or event broker. One atomic admission script enforces the global worker-slot ceiling, active fleets per user, and daily reserved-plus-consumed token budget before provider work starts. Expiring sorted-set leases self-heal capacity after process failure.
+
+Provider response IDs make usage charges idempotent. Sail returns token counts directly and uses operator-configured rates for cost. AI Gateway synthesis attaches the Clerk user ID and run tag to Gateway reporting, then resolves the generation record for exact tokens and cost. If a cost lookup is unavailable, Fleet counts the tokens and increments `unpricedRequests` rather than inventing a price.
 
 ## Design synthesis
 

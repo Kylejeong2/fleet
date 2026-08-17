@@ -1,38 +1,26 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { z } from 'zod'
-import { parseRunId } from '../../../../lib/fleet-protocol'
-import {
-  ProfileNotReadyError,
-  RunNotFoundError,
-} from '../../../../server/fleet/service'
-import {
-  AdmissionRejectedError,
-  getFleetRuntime,
-} from '../../../../server/fleet/runtime'
 import {
   requireFleetActor,
   UnauthenticatedError,
-} from '../../../../server/auth'
+} from '../../../server/auth'
+import {
+  AdmissionRejectedError,
+  getFleetRuntime,
+} from '../../../server/fleet/runtime'
+import { ProfileNotReadyError } from '../../../server/fleet/service'
 
-export const Route = createFileRoute('/api/v1/runs/$runId')({
+export const Route = createFileRoute('/api/v1/usage')({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async () => {
         try {
           const actor = await requireFleetActor()
-          await getFleetRuntime().checkRate(actor, 'read')
-          return Response.json(
-            await getFleetRuntime().getRun(actor, parseRunId(params.runId)),
-          )
+          const runtime = getFleetRuntime()
+          await runtime.checkRate(actor, 'read')
+          return Response.json(await runtime.usage(actor))
         } catch (error) {
-          if (error instanceof z.ZodError) {
-            return Response.json({ error: 'Invalid run ID' }, { status: 400 })
-          }
           if (error instanceof UnauthenticatedError) {
             return Response.json({ error: error.message }, { status: 401 })
-          }
-          if (error instanceof RunNotFoundError) {
-            return Response.json({ error: error.message }, { status: 404 })
           }
           if (error instanceof AdmissionRejectedError) {
             return Response.json(

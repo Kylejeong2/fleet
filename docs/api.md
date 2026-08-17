@@ -61,3 +61,9 @@ Clients must apply events in sequence. A duplicate can be ignored. A gap means t
 Boundary errors return JSON with a public message and an appropriate HTTP status. Provider failures do not normally fail the HTTP connection. They become typed events so every client sees the same durable outcome.
 
 Secrets, raw provider responses, and stack traces are never part of the public event contract.
+
+Admission failures include a `Retry-After` header. Per-user fleet, token, and request limits return `429`; exhausted global provider capacity returns `503`.
+
+## Read usage
+
+`GET /api/v1/usage` returns the signed-in user's current UTC-day input, output, and total token counts; outstanding reserved tokens; known USD cost; unpriced request count; and active fleet count. Gateway synthesis uses the Gateway generation record for exact cost. Sail cost is calculated from the configured per-million-token rates; without those rates, its tokens are still counted and the request is marked unpriced.

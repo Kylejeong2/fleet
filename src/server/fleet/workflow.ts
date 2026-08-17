@@ -22,6 +22,13 @@ import type {
   ResearchToolResult,
   SynthesisInput,
 } from './ports'
+import type { FleetActor } from '../auth'
+import {
+  createAdmissionConfig,
+  RedisFleetPolicy,
+  type AdmissionLease,
+} from './admission'
+import { createRedisCommand } from './ownership'
 
 type Assignment = { agentId: AgentId; objective: string }
 type Finding = SynthesisInput['findings'][number]
@@ -95,6 +102,7 @@ async function researchAgentStep(
   input: CreateRunInput,
   assignment: Assignment,
   writable: WritableStream<FleetEventDraft>,
+  lease: AdmissionLease,
 ): Promise<Finding | null> {
   'use step'
   const { attempt } = getStepMetadata()
@@ -150,6 +158,9 @@ async function researchAgentStep(
         },
         new AbortController().signal,
       )
+      if (response.usage) {
+        await workflowPolicy().recordUsage(lease, runId, response.usage)
+      }
       await Promise.all(activityWrites)
       const reasoning = response.reasoning?.trim() || (response.kind === 'tool-call'
         ? `Selected ${response.call.kind === 'search' ? 'Search' : 'Fetch'} as the next evidence step.`
@@ -270,6 +281,8 @@ async function synthesizeStep(
   input: CreateRunInput,
   findings: Finding[],
   writable: WritableStream<FleetEventDraft>,
+  actor: FleetActor,
+  lease: AdmissionLease,
 ): Promise<void> {
   'use step'
   const { attempt } = getStepMetadata()
@@ -291,7 +304,7 @@ async function synthesizeStep(
       synthesizer: synthesizer.name,
     })
     for await (const part of synthesizer.stream(
-      { question: input.question, findings },
+      { question: input.question, findings, userId: actor.userId, runId },
       new AbortController().signal,
     )) {
       if (part.kind === 'reasoning-delta') {
@@ -301,7 +314,7 @@ async function synthesizeStep(
           at: eventTime(),
           delta: part.delta,
         })
-      } else {
+      } else if (part.kind === 'text-delta') {
         answer += part.delta
         await writeEvent(writer, {
           kind: 'synthesis.delta',
@@ -309,6 +322,8 @@ async function synthesizeStep(
           at: eventTime(),
           delta: part.delta,
         })
+      } else {
+        await workflowPolicy().recordUsage(lease, runId, part.usage)
       }
     }
     await writeEvent(writer, {
@@ -335,6 +350,11 @@ async function synthesizeStep(
   }
 }
 
+async function releaseAdmissionStep(lease: AdmissionLease): Promise<void> {
+  'use step'
+  await workflowPolicy().release(lease)
+}
+
 async function failEmptyFleetStep(
   runId: RunId,
   writable: WritableStream<FleetEventDraft>,
@@ -353,24 +373,43 @@ async function failEmptyFleetStep(
   }
 }
 
-export async function fleetResearchWorkflow(input: CreateRunInput): Promise<void> {
+export async function fleetResearchWorkflow(
+  input: CreateRunInput,
+  actor: FleetActor,
+  lease: AdmissionLease,
+): Promise<void> {
   'use workflow'
   const runId = parseRunId(getWorkflowMetadata().workflowRunId)
   const writable = getWritable<FleetEventDraft>()
-  const assignments = await planFleetStep(runId, input, writable)
-  const findings: Finding[] = []
-  for (const batch of createBatches(assignments, input.concurrency)) {
-    const results = await Promise.all(
-      batch.map((assignment) => researchAgentStep(runId, input, assignment, writable)),
-    )
-    for (const finding of results) if (finding) findings.push(finding)
+  try {
+    const assignments = await planFleetStep(runId, input, writable)
+    const findings: Finding[] = []
+    for (const batch of createBatches(assignments, input.concurrency)) {
+      const results = await Promise.all(
+        batch.map((assignment) => researchAgentStep(
+          runId,
+          input,
+          assignment,
+          writable,
+          lease,
+        )),
+      )
+      for (const finding of results) if (finding) findings.push(finding)
+    }
+    if (findings.length === 0) {
+      await failEmptyFleetStep(runId, writable)
+      return
+    }
+    await synthesizeStep(runId, input, findings, writable, actor, lease)
+  } finally {
+    await releaseAdmissionStep(lease)
   }
-  if (findings.length === 0) {
-    await failEmptyFleetStep(runId, writable)
-    return
-  }
-  await synthesizeStep(runId, input, findings, writable)
 }
+
+const workflowPolicy = (): RedisFleetPolicy => new RedisFleetPolicy(
+  createRedisCommand(process.env),
+  createAdmissionConfig(process.env),
+)
 
 const isTransientFailure = (message: string): boolean =>
   /\b(?:408|425|429|500|502|503|504)\b|overload|timeout|temporar|network|fetch failed/i.test(message)

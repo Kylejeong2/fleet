@@ -11,6 +11,11 @@ import { RunCoordinator } from './coordinator'
 import { createFleetDependencies, ProfileNotReadyError } from './dependencies'
 import { FleetJournal } from './journal'
 import { replayEvents } from './reducer'
+import {
+  MemoryFleetPolicy,
+  type AdmissionLease,
+  type FleetPolicy,
+} from './admission'
 
 export class IdempotencyConflictError extends Error {}
 export class RunNotFoundError extends Error {}
@@ -22,12 +27,14 @@ export class FleetService {
     private readonly coordinatorFactory: (
       profile: RunProfile,
     ) => RunCoordinator,
+    readonly policy: FleetPolicy = new MemoryFleetPolicy(),
   ) {}
 
   createRun(args: {
     input: CreateRunInput
     idempotencyKey: string | null
     actor: FleetActor
+    lease: AdmissionLease
   }): RunSnapshot {
     const coordinator = this.coordinatorFactory(args.input.profile)
     const runId = createRunId()
@@ -39,7 +46,12 @@ export class FleetService {
     }
     const effectiveRunId = result.runId
     if (result.kind === 'created') {
-      void coordinator.run(effectiveRunId, args.input)
+      void coordinator.run(effectiveRunId, args.input, {
+        userId: args.actor.userId,
+        onUsage: (usage) => this.policy.recordUsage(args.lease, effectiveRunId, usage),
+      }).finally(() => this.policy.release(args.lease))
+    } else {
+      void this.policy.release(args.lease)
     }
     return this.getRun(args.actor, effectiveRunId)
   }
@@ -54,6 +66,10 @@ export class FleetService {
   events(actor: FleetActor, runId: RunId, after: number): FleetEvent[] {
     this.assertOwnership(actor, runId)
     return this.journal.read(runId, after)
+  }
+
+  usage(actor: FleetActor) {
+    return this.policy.usage(actor)
   }
 
   private assertOwnership(actor: FleetActor, runId: RunId): void {

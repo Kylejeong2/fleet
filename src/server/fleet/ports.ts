@@ -1,4 +1,4 @@
-import type { AgentId, SearchResult } from '../../lib/fleet-protocol'
+import type { AgentId, RunId, SearchResult } from '../../lib/fleet-protocol'
 
 export type ResearchToolCall =
   | { kind: 'search'; query: string; reasoning?: string }
@@ -30,8 +30,17 @@ export type WorkerActivity = {
 }
 
 export type WorkerResponse =
-  | { kind: 'tool-call'; call: ResearchToolCall; reasoning?: string }
-  | { kind: 'finding'; finding: string; reasoning?: string }
+  | { kind: 'tool-call'; call: ResearchToolCall; reasoning?: string; usage?: ProviderUsage }
+  | { kind: 'finding'; finding: string; reasoning?: string; usage?: ProviderUsage }
+
+export type ProviderUsage = {
+  id: string
+  inputTokens: number
+  outputTokens: number
+  costUsd: number | null
+  provider: string
+  model: string
+}
 
 export interface WorkerModel {
   readonly name: string
@@ -44,6 +53,8 @@ export interface ResearchTools {
 
 export type SynthesisInput = {
   question: string
+  userId?: string
+  runId?: RunId
   findings: Array<{
     agentId: AgentId
     objective: string
@@ -55,6 +66,7 @@ export type SynthesisInput = {
 export type SynthesisStreamPart =
   | { kind: 'reasoning-delta'; delta: string }
   | { kind: 'text-delta'; delta: string }
+  | { kind: 'usage'; usage: ProviderUsage }
 
 export interface Synthesizer {
   readonly name: string

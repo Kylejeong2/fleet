@@ -86,6 +86,41 @@ describe('SailWorkerModel', () => {
     })
   })
 
+  it('attributes provider tokens and configured cost to the response ID', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({
+      id: 'response-with-usage',
+      status: 'completed',
+      usage: { input_tokens: 1_000, output_tokens: 500 },
+      output: [{
+        type: 'message',
+        content: [{ type: 'output_text', text: 'Metered finding.' }],
+      }],
+    })))
+
+    const runId = createRunId()
+    const result = await new SailWorkerModel(
+      'test-key',
+      undefined,
+      undefined,
+      2,
+      4,
+    ).respond({
+      question: 'What does usage cost?',
+      objective: 'Measure usage',
+      agentId: createAgentId(runId, 0),
+      history: [],
+    }, new AbortController().signal)
+
+    expect(result).toMatchObject({
+      usage: {
+        id: 'sail:response-with-usage',
+        inputTokens: 1_000,
+        outputTokens: 500,
+        costUsd: 0.004,
+      },
+    })
+  })
+
   it('removes tools and requires a finding after the evidence budget is exhausted', async () => {
     const request = vi.fn(async (_input: string | URL | Request, init?: RequestInit) =>
       Response.json({
