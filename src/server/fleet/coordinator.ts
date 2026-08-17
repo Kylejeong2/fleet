@@ -66,6 +66,9 @@ export class RunCoordinator {
       return
     }
     const runStartedAt = Date.now()
+    const researchQuestion = input.context
+      ? `${input.context}\n\nCurrent follow-up question: ${input.question}`
+      : input.question
     this.#active.add(runId)
     const signal = new AbortController().signal
     fleetLog('info', 'run.started', {
@@ -120,7 +123,7 @@ export class RunCoordinator {
             if (!assignment) continue
             const finding = await this.#runAgent({
               runId,
-              question: input.question,
+              question: researchQuestion,
               ...assignment,
               signal,
             })
@@ -164,7 +167,7 @@ export class RunCoordinator {
       }))
       let answer = ''
       for await (const part of this.synthesizer.stream(
-        { question: input.question, findings },
+        { question: researchQuestion, findings },
         signal,
       )) {
         if (part.kind === 'reasoning-delta') {

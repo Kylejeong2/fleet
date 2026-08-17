@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import * as SelectPrimitive from '@radix-ui/react-select'
 import {
+  ArrowLeft,
   ArrowUp,
   Brain,
   Check,
@@ -20,9 +21,11 @@ import remarkGfm from 'remark-gfm'
 import {
   useEffect,
   useId,
+  lazy,
   useMemo,
   useRef,
   useState,
+  Suspense,
   type FormEvent,
 } from 'react'
 import {
@@ -34,6 +37,11 @@ import {
   type ToolTrace,
 } from '../lib/fleet-protocol'
 import { reduceEvent } from '../server/fleet/reducer'
+
+const ResearchOcean = lazy(async () => {
+  const ocean = await import('./-research-ocean')
+  return { default: ocean.ResearchOcean }
+})
 
 export const Route = createFileRoute('/')({
   component: FleetHome,
@@ -96,9 +104,11 @@ const botPalettes = [
 function FleetHome() {
   const [hydrated, setHydrated] = useState(false)
   const [question, setQuestion] = useState('')
-  const [agentCount, setAgentCount] = useState(12)
+  const [agentCount, setAgentCount] = useState(50)
   const [snapshot, setSnapshot] = useState<RunSnapshot | null>(null)
+  const [conversationHistory, setConversationHistory] = useState<RunSnapshot[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const [dialogRunId, setDialogRunId] = useState<string | null>(null)
   const [fleetOpen, setFleetOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -108,6 +118,7 @@ function FleetHome() {
   const dialogRef = useRef<HTMLElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
+  const appendingFollowUpRef = useRef(false)
 
   useEffect(() => {
     setHydrated(true)
@@ -154,7 +165,20 @@ function FleetHome() {
 
   useEffect(() => {
     if (fleetOpen) closeButtonRef.current?.focus()
-  }, [fleetOpen])
+  }, [fleetOpen, selectedAgentId])
+
+  useEffect(() => {
+    if (!snapshot?.id) return
+    if (appendingFollowUpRef.current) {
+      appendingFollowUpRef.current = false
+      const frame = requestAnimationFrame(() => {
+        const messages = messagesRef.current
+        messages?.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' })
+      })
+      return () => cancelAnimationFrame(frame)
+    }
+    messagesRef.current?.scrollTo({ top: 0 })
+  }, [snapshot?.id])
 
   useEffect(() => {
     if (!snapshot || !autoScrollRef.current) return
@@ -195,16 +219,20 @@ function FleetHome() {
     return () => document.removeEventListener('keydown', closeOnEscape)
   }, [fleetOpen])
 
+  const dialogSnapshot = useMemo(
+    () => conversationHistory.find((turn) => turn.id === dialogRunId) ?? snapshot,
+    [conversationHistory, dialogRunId, snapshot],
+  )
+
   const selectedAgent = useMemo(
-    () =>
-      snapshot?.agents.find((agent) => agent.id === selectedAgentId) ??
-      snapshot?.agents[0] ??
-      null,
-    [selectedAgentId, snapshot?.agents],
+    () => selectedAgentId
+      ? dialogSnapshot?.agents.find((agent) => agent.id === selectedAgentId) ?? null
+      : null,
+    [dialogSnapshot, selectedAgentId],
   )
 
   const completeCount =
-    snapshot?.agents.filter((agent) =>
+    dialogSnapshot?.agents.filter((agent) =>
       ['succeeded', 'failed'].includes(agent.status),
     ).length ?? 0
 
@@ -218,13 +246,20 @@ function FleetHome() {
     }
   }
 
-  async function startResearch(event: FormEvent<HTMLFormElement>) {
+  async function startResearch(event: FormEvent<HTMLFormElement>, mode: 'new' | 'follow-up' = 'new') {
     event.preventDefault()
     if (question.trim().length < 3 || submitting) return
+    const currentSnapshot = snapshot
+    const isFollowUp = mode === 'follow-up' && currentSnapshot !== null
+    const priorTurns = isFollowUp ? [...conversationHistory, currentSnapshot] : []
     setSubmitting(true)
     setError(null)
-    setSnapshot(null)
+    if (!isFollowUp) {
+      setConversationHistory([])
+      setSnapshot(null)
+    }
     setSelectedAgentId(null)
+    setDialogRunId(null)
     setFleetOpen(false)
     autoScrollRef.current = true
     try {
@@ -236,6 +271,7 @@ function FleetHome() {
         },
         body: JSON.stringify({
           question: question.trim(),
+          context: isFollowUp ? conversationContext(priorTurns) : undefined,
           agentCount,
           concurrency: Math.min(agentCount, 6),
           profile: 'live',
@@ -249,7 +285,12 @@ function FleetHome() {
             : 'Fleet could not start this run.'
         throw new Error(message)
       }
-      setSnapshot(RunSnapshotSchema.parse(body))
+      const nextSnapshot = RunSnapshotSchema.parse(body)
+      if (isFollowUp) {
+        appendingFollowUpRef.current = true
+        setConversationHistory((current) => [...current, currentSnapshot])
+      }
+      setSnapshot(nextSnapshot)
       setQuestion('')
     } catch (startError) {
       setError(errorMessage(startError))
@@ -263,8 +304,9 @@ function FleetHome() {
     requestAnimationFrame(() => fleetButtonRef.current?.focus())
   }
 
-  function openAgentTrace(agentId: string) {
-    if (!snapshot?.agents.some((agent) => agent.id === agentId)) return
+  function openAgentTrace(agentId: string, turn: RunSnapshot | null = snapshot) {
+    if (!turn?.agents.some((agent) => agent.id === agentId)) return
+    setDialogRunId(turn.id)
     setSelectedAgentId(agentId)
     setFleetOpen(true)
   }
@@ -281,14 +323,13 @@ function FleetHome() {
   return (
     <LazyMotion features={domAnimation} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
-      <section className="conversation" aria-label="Fleet research chat">
+      <section className={`conversation ${snapshot ? 'has-run' : 'ocean-home'}`} aria-label="Fleet chat">
         <header className="conversation-header">
           <FleetBoatMark />
-          <span className="conversation-title">Fleet research</span>
+          <span className="conversation-title">Fleet</span>
           {snapshot ? (
             <span className="run-meta">
               {snapshot.agentCount} {snapshot.agentCount === 1 ? 'agent' : 'agents'}
-              <i className={`status-light ${snapshot.status}`} aria-hidden="true" />
             </span>
           ) : null}
           <div className="header-actions">
@@ -297,7 +338,11 @@ function FleetHome() {
                 className="view-fleet-button"
                 type="button"
                 ref={fleetButtonRef}
-                onClick={() => setFleetOpen(true)}
+                onClick={() => {
+                  setDialogRunId(snapshot.id)
+                  setSelectedAgentId(null)
+                  setFleetOpen(true)
+                }}
               >
                 <FleetMark />
                 View fleet
@@ -318,27 +363,32 @@ function FleetHome() {
         </header>
 
         {snapshot ? (
-          <ResearchConversation
-            snapshot={snapshot}
-            onOpenAgent={openAgentTrace}
-            messagesRef={messagesRef}
-            onBreakAutoScroll={() => { autoScrollRef.current = false }}
-            onReachBottom={() => { autoScrollRef.current = true }}
-          />
+          <div className="conversation-stage">
+              <ResearchConversation
+                history={conversationHistory}
+                snapshot={snapshot}
+                onOpenAgent={openAgentTrace}
+                messagesRef={messagesRef}
+                onBreakAutoScroll={() => { autoScrollRef.current = false }}
+                onReachBottom={() => { autoScrollRef.current = true }}
+              />
+          </div>
         ) : (
-          <WelcomeComposer
-            question={question}
-            setQuestion={setQuestion}
-            agentCount={agentCount}
-            setAgentCount={setAgentCount}
-            submitting={submitting}
-            onSubmit={startResearch}
-          />
+          <div className="welcome-transition">
+              <WelcomeComposer
+                question={question}
+                setQuestion={setQuestion}
+                agentCount={agentCount}
+                setAgentCount={setAgentCount}
+                submitting={submitting}
+                onSubmit={startResearch}
+              />
+          </div>
         )}
 
         {snapshot ? (
-          <form className="follow-up-composer" onSubmit={startResearch}>
-            <label className="sr-only" htmlFor="follow-up-question">New research question</label>
+          <form className="follow-up-composer" onSubmit={(event) => startResearch(event, 'follow-up')}>
+            <label className="sr-only" htmlFor="follow-up-question">Follow-up question</label>
             <input
               id="follow-up-question"
               value={question}
@@ -349,11 +399,11 @@ function FleetHome() {
                   event.currentTarget.form?.requestSubmit()
                 }
               }}
-              placeholder="Start another research run"
+              placeholder="Ask a follow-up question"
             />
             <button type="submit" disabled={submitting || question.trim().length < 3}>
               <ArrowUp aria-hidden="true" size={15} strokeWidth={2} />
-              <span className="sr-only">Start research</span>
+              <span className="sr-only">Ask follow-up</span>
             </button>
           </form>
         ) : null}
@@ -361,11 +411,10 @@ function FleetHome() {
         {error ? <div className="error-toast" role="alert">{error}</div> : null}
       </section>
 
-      {snapshot && fleetOpen ? (
+      {dialogSnapshot && fleetOpen ? (
         <FleetDialog
-          snapshot={snapshot}
+          snapshot={dialogSnapshot}
           selectedAgent={selectedAgent}
-          selectedAgentId={selectedAgentId}
           completeCount={completeCount}
           closeButtonRef={closeButtonRef}
           dialogRef={dialogRef}
@@ -429,6 +478,11 @@ function WelcomeComposer(props: {
           </button>
         </div>
       </form>
+      <div className="ocean-transition-frame ocean-transition-hero">
+        <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
+          <ResearchOcean />
+        </Suspense>
+      </div>
     </section>
   )
 }
@@ -478,19 +532,20 @@ function FleetSelect(props: {
 }
 
 function ResearchConversation({
+  history,
   snapshot,
   onOpenAgent,
   messagesRef,
   onBreakAutoScroll,
   onReachBottom,
 }: {
+  history: RunSnapshot[]
   snapshot: RunSnapshot
-  onOpenAgent: (agentId: string) => void
+  onOpenAgent: (agentId: string, turn: RunSnapshot) => void
   messagesRef: React.RefObject<HTMLDivElement | null>
   onBreakAutoScroll: () => void
   onReachBottom: () => void
 }) {
-  const answer = snapshot.finalAnswer ?? snapshot.partialAnswer
   return (
     <div
       className="messages"
@@ -511,77 +566,120 @@ function ResearchConversation({
       }}
     >
       <div className="message-column">
-        <div className="prompt-bubble">{snapshot.question}</div>
-        <article className="response">
-          <header className="response-head">
-            <span className="research-icon" aria-hidden="true"><SearchIcon size={13} strokeWidth={1.8} /></span>
-            <span>{responseTitle(snapshot)}</span>
-            {snapshot.status === 'running' || snapshot.status === 'synthesizing' ? <TypingDots /> : null}
-          </header>
-          {answer ? null : <ResearchProgress snapshot={snapshot} />}
-          <ResearchActivity snapshot={snapshot} onOpenAgent={onOpenAgent} />
-          {answer ? <AnswerText text={answer} onOpenAgent={onOpenAgent} /> : null}
-          {snapshot.error ? <p className="inline-error" role="alert">{snapshot.error}</p> : null}
-        </article>
+        {history.map((turn) => (
+          <ResearchTurn key={turn.id} snapshot={turn} archived onOpenAgent={onOpenAgent} />
+        ))}
+        <ResearchTurn snapshot={snapshot} onOpenAgent={onOpenAgent} />
       </div>
     </div>
   )
 }
 
+function ResearchTurn({
+  snapshot,
+  archived = false,
+  onOpenAgent,
+}: {
+  snapshot: RunSnapshot
+  archived?: boolean
+  onOpenAgent: (agentId: string, turn: RunSnapshot) => void
+}) {
+  const answer = snapshot.finalAnswer ?? snapshot.partialAnswer
+  const openAgent = (agentId: string) => onOpenAgent(agentId, snapshot)
+  return (
+    <section className={`conversation-turn ${archived ? 'archived' : 'active'}`}>
+      <div className="prompt-bubble">{snapshot.question}</div>
+      <article className="response">
+        <header className="response-head">
+          <span className="research-icon" aria-hidden="true"><SearchIcon size={13} strokeWidth={1.8} /></span>
+          <span>{responseTitle(snapshot)}</span>
+          {!archived && (snapshot.status === 'running' || snapshot.status === 'synthesizing') ? <TypingDots /> : null}
+        </header>
+        {archived ? null : (
+          <div className="ocean-transition-frame ocean-transition-compact">
+            <Suspense fallback={<OceanFallback label="Launching the fleet" />}>
+              <ResearchOcean snapshot={snapshot} onOpenAgent={openAgent} />
+            </Suspense>
+          </div>
+        )}
+        {answer ? null : <ResearchProgress snapshot={snapshot} />}
+        {archived ? null : <ResearchActivity snapshot={snapshot} onOpenAgent={openAgent} />}
+        {answer ? <AnswerText text={answer} onOpenAgent={openAgent} /> : null}
+        {snapshot.error ? <p className="inline-error" role="alert">{snapshot.error}</p> : null}
+      </article>
+    </section>
+  )
+}
+
+function OceanFallback({ label }: { label: string }) {
+  return <div className="research-ocean ocean-loading" role="status"><span>{label}</span></div>
+}
+
 function FleetDialog(props: {
   snapshot: RunSnapshot
   selectedAgent: AgentSnapshot | null
-  selectedAgentId: string | null
   completeCount: number
   closeButtonRef: React.RefObject<HTMLButtonElement | null>
   dialogRef: React.RefObject<HTMLElement | null>
   onClose: () => void
-  onSelectAgent: (id: string) => void
+  onSelectAgent: (id: string | null) => void
 }) {
   const workingCount = props.snapshot.agents.filter((agent) => agent.status === 'running').length
+  const selectedAgentIndex = props.selectedAgent
+    ? Math.max(0, props.snapshot.agents.indexOf(props.selectedAgent))
+    : 0
   return (
     <div className="scrim" onMouseDown={(event) => event.target === event.currentTarget && props.onClose()}>
       <section
-        className="fleet-dialog"
+        className={`fleet-dialog ${props.selectedAgent ? 'agent-view' : 'fleet-view'}`}
         ref={props.dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="fleet-dialog-title"
+        aria-labelledby={props.selectedAgent ? 'agent-dialog-title' : 'fleet-dialog-title'}
       >
-        <div className="fleet-main">
-          <header className="fleet-head">
-            <h2 id="fleet-dialog-title">Fleet</h2>
-            <span>{workingCount} working · {props.completeCount} finished</span>
-            <button ref={props.closeButtonRef} type="button" onClick={props.onClose} aria-label="Close fleet">×</button>
-          </header>
-          <div className="objective-block">
-            <div>
-              <strong>{trimQuestion(props.snapshot.question)}</strong>
+        {props.selectedAgent ? (
+          <TracePanel
+            agent={props.selectedAgent}
+            index={selectedAgentIndex}
+            closeButtonRef={props.closeButtonRef}
+            onBack={() => props.onSelectAgent(null)}
+            onClose={props.onClose}
+          />
+        ) : (
+          <div className="fleet-main">
+            <header className="fleet-head">
+              <h2 id="fleet-dialog-title">Fleet</h2>
+              <span>{workingCount} working · {props.completeCount} finished</span>
+              <button ref={props.closeButtonRef} type="button" onClick={props.onClose} aria-label="Close fleet">×</button>
+            </header>
+            <div className="objective-block">
+              <div>
+                <strong>{trimQuestion(props.snapshot.question)}</strong>
+              </div>
+              <div
+                className="overall-progress"
+                role="progressbar"
+                aria-label="Fleet progress"
+                aria-valuemin={0}
+                aria-valuemax={props.snapshot.agentCount}
+                aria-valuenow={props.completeCount}
+              >
+                <i style={{ width: `${(props.completeCount / props.snapshot.agentCount) * 100}%` }} />
+              </div>
             </div>
-            <div
-              className="overall-progress"
-              role="progressbar"
-              aria-label="Fleet progress"
-              aria-valuemin={0}
-              aria-valuemax={props.snapshot.agentCount}
-              aria-valuenow={props.completeCount}
-            >
-              <i style={{ width: `${(props.completeCount / props.snapshot.agentCount) * 100}%` }} />
+            <div className="agent-grid" aria-label="Research agents">
+              {props.snapshot.agents.length ? props.snapshot.agents.map((agent, index) => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  index={index}
+                  selected={false}
+                  onSelect={() => props.onSelectAgent(agent.id)}
+                />
+              )) : <AgentSkeletons count={Math.min(props.snapshot.agentCount, 12)} />}
             </div>
           </div>
-          <div className="agent-grid" aria-label="Research agents">
-            {props.snapshot.agents.length ? props.snapshot.agents.map((agent, index) => (
-              <AgentCard
-                key={agent.id}
-                agent={agent}
-                index={index}
-                selected={(props.selectedAgentId ?? props.snapshot.agents[0]?.id) === agent.id}
-                onSelect={() => props.onSelectAgent(agent.id)}
-              />
-            )) : <AgentSkeletons count={Math.min(props.snapshot.agentCount, 12)} />}
-          </div>
-        </div>
-        <TracePanel agent={props.selectedAgent} index={Math.max(0, props.snapshot.agents.indexOf(props.selectedAgent!))} />
+        )}
       </section>
     </div>
   )
@@ -596,7 +694,7 @@ function ResearchActivity({
 }) {
   const running = snapshot.status === 'running' || snapshot.status === 'synthesizing'
   const answerStarted = snapshot.partialAnswer.length > 0 || snapshot.finalAnswer !== null
-  const [open, setOpen] = useState(!answerStarted)
+  const [open, setOpen] = useState(false)
   const wasAnswerStarted = useRef(answerStarted)
   const started = snapshot.agents.filter((agent) => agent.status !== 'planned').length
   const visibleAgents = snapshot.agents.filter((agent) => agent.status !== 'planned')
@@ -802,34 +900,58 @@ function AgentSkeletons({ count }: { count: number }) {
   ))
 }
 
-function TracePanel({ agent, index }: { agent: AgentSnapshot | null; index: number }) {
-  const sourceCount = agent ? uniqueSourceCount(agent.trace) : 0
+function TracePanel({
+  agent,
+  index,
+  closeButtonRef,
+  onBack,
+  onClose,
+}: {
+  agent: AgentSnapshot
+  index: number
+  closeButtonRef: React.RefObject<HTMLButtonElement | null>
+  onBack: () => void
+  onClose: () => void
+}) {
+  const sourceCount = uniqueSourceCount(agent.trace)
   return (
     <aside className="trace-panel" aria-label="Selected agent trace">
-      <header className="trace-head"><strong>Agent trace</strong><span>{agent ? displayStatus(agent.status) : 'Planning'}</span></header>
-      {agent ? (
-        <>
-          <div className="trace-context">
-            <div className="trace-agent"><Bot index={index} active={agent.status === 'running'} /><div><strong>{agentNames[index % agentNames.length]}</strong><span>{agent.activity}</span></div></div>
-            <div className="trace-label">Current objective</div>
-            <p className="trace-objective">{agent.objective}</p>
-          </div>
-          <div className="trace-events">
-            <div className="trace-label tool-activity-label">Chronological trace</div>
-            <AgentTimeline agent={agent} />
-            {agent.finding ? (
-              <>
-                <div className="trace-label finding-label">Finding</div>
-                <div className="trace-finding subagent-markdown">
-                  <Markdown remarkPlugins={[remarkGfm]}>{agent.finding}</Markdown>
-                </div>
-              </>
-            ) : null}
-            {agent.error ? <p className="inline-error">{agent.error}</p> : null}
-          </div>
-          <footer className="trace-foot"><span>{sourceCount} {sourceCount === 1 ? 'source' : 'sources'}</span><span>{agent.trace.length} tool {agent.trace.length === 1 ? 'call' : 'calls'}</span></footer>
-        </>
-      ) : <p className="empty-agent">The fleet is assigning research objectives.</p>}
+      <header className="trace-head">
+        <button className="trace-back-button" type="button" onClick={onBack}>
+          <ArrowLeft aria-hidden="true" size={17} strokeWidth={1.8} />
+          Back to fleet
+        </button>
+        <strong id="agent-dialog-title">Agent trace</strong>
+        <span>{displayStatus(agent.status)}</span>
+        <button ref={closeButtonRef} className="trace-close-button" type="button" onClick={onClose} aria-label="Close agent trace">×</button>
+      </header>
+      <div className="trace-context">
+        <div className="trace-content-column">
+          <div className="trace-agent"><Bot index={index} active={agent.status === 'running'} /><div><strong>{agentNames[index % agentNames.length]}</strong><span>{agent.activity}</span></div></div>
+          <div className="trace-label">Current objective</div>
+          <p className="trace-objective">{agent.objective}</p>
+        </div>
+      </div>
+      <div className="trace-events">
+        <div className="trace-content-column">
+          <AgentTimeline agent={agent} />
+          {agent.finding ? (
+            <>
+              <div className="trace-label finding-label">Finding</div>
+              <div className="trace-finding subagent-markdown">
+                <Markdown remarkPlugins={[remarkGfm]}>{agent.finding}</Markdown>
+              </div>
+            </>
+          ) : null}
+          {agent.error ? <p className="inline-error">{agent.error}</p> : null}
+        </div>
+      </div>
+      <footer className="trace-foot">
+        <div className="trace-content-column">
+          <span>{sourceCount} {sourceCount === 1 ? 'source' : 'sources'}</span>
+          <span>{agent.trace.length} tool {agent.trace.length === 1 ? 'call' : 'calls'}</span>
+        </div>
+      </footer>
     </aside>
   )
 }
@@ -911,6 +1033,11 @@ function Bot({ index, active }: { index: number; active: boolean }) {
         <circle className="bot-ear" cx="10" cy="23" r="3.2" fill={palette.accentSoft} />
         <circle className="bot-ear right" cx="42" cy="23" r="3.2" fill={palette.accentSoft} />
         <rect className="bot-head" x="11" y="11" width="30" height="24" rx="9" fill={`url(#${gradientId})`} />
+        <g className="bot-sailor-hat">
+          <path className="bot-hat-crown" d="M16.3 12.4c1.2-4.1 4.2-5.9 9.7-5.9s8.5 1.8 9.7 5.9c-6.5 1.5-12.9 1.5-19.4 0Z" />
+          <path className="bot-hat-band" d="M14.2 12.3c7.8 2.4 15.8 2.4 23.6 0l-1 3.8c-7.2 2-14.4 2-21.6 0Z" />
+          <path className="bot-hat-emblem" d="M26 8.2v3.4m-1.8-1.2h3.6" />
+        </g>
         <rect className="bot-face" x="15" y="16" width="22" height="13" rx="5" />
         <m.g
           className="bot-eyes"
@@ -1066,6 +1193,17 @@ function displayStatus(status: string): string {
 
 function trimQuestion(question: string): string {
   return question.length > 80 ? `${question.slice(0, 77)}…` : question
+}
+
+function conversationContext(turns: RunSnapshot[]): string {
+  return turns
+    .slice(-3)
+    .map((turn, index) => {
+      const answer = (turn.finalAnswer ?? turn.partialAnswer) || 'No answer was produced.'
+      return `Turn ${index + 1}\nQuestion: ${turn.question}\nAnswer: ${answer.slice(0, 5_500)}`
+    })
+    .join('\n\n')
+    .slice(-19_500)
 }
 
 function errorMessage(error: unknown): string {

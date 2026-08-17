@@ -73,6 +73,7 @@ export type RunProfile = z.infer<typeof RunProfileSchema>
 
 export const CreateRunInputSchema = z.object({
   question: z.string().trim().min(3).max(10_000),
+  context: z.string().trim().max(20_000).optional(),
   agentCount: z.number().int().min(1).max(100),
   concurrency: z.number().int().min(1).max(8),
   profile: RunProfileSchema,
