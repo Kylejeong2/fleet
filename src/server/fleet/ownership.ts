@@ -5,16 +5,16 @@ import type { FleetActor } from '../auth'
 const RedisResponseSchema = z.object({ result: z.unknown() })
 
 export interface RunOwnershipStore {
-  put(runId: RunId, actor: FleetActor): Promise<void>
+  put(runId: RunId, actor: FleetActor, leaseId?: string): Promise<void>
   owns(runId: RunId, tenantId: string): Promise<boolean>
 }
 
-type RedisCommand = (command: Array<string | number>) => Promise<unknown>
+export type RedisCommand = (command: Array<string | number>) => Promise<unknown>
 
 export class RedisRunOwnershipStore implements RunOwnershipStore {
   constructor(private readonly command: RedisCommand) {}
 
-  async put(runId: RunId, actor: FleetActor): Promise<void> {
+  async put(runId: RunId, actor: FleetActor, leaseId?: string): Promise<void> {
     await this.command([
       'HSET',
       ownershipKey(runId),
@@ -24,6 +24,7 @@ export class RedisRunOwnershipStore implements RunOwnershipStore {
       actor.userId,
       'createdAt',
       new Date().toISOString(),
+      ...(leaseId ? ['leaseId', leaseId] : []),
     ])
   }
 

@@ -1,8 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 import { parseRunId } from '../../../../../lib/fleet-protocol'
-import { RunNotFoundError } from '../../../../../server/fleet/service'
-import { getFleetRuntime } from '../../../../../server/fleet/runtime'
+import {
+  ProfileNotReadyError,
+  RunNotFoundError,
+} from '../../../../../server/fleet/service'
+import {
+  AdmissionRejectedError,
+  getFleetRuntime,
+} from '../../../../../server/fleet/runtime'
 import {
   requireFleetActor,
   UnauthenticatedError,
@@ -15,6 +21,7 @@ export const Route = createFileRoute('/api/v1/runs/$runId/events')({
       GET: async ({ request, params }) => {
         try {
           const actor = await requireFleetActor()
+          await getFleetRuntime().checkRate(actor, 'read')
           const runId = parseRunId(params.runId)
           const url = new URL(request.url)
           const rawCursor = url.searchParams.get('after') ?? request.headers.get('last-event-id') ?? '0'
@@ -35,6 +42,18 @@ export const Route = createFileRoute('/api/v1/runs/$runId/events')({
           }
           if (error instanceof RunNotFoundError) {
             return Response.json({ error: error.message }, { status: 404 })
+          }
+          if (error instanceof AdmissionRejectedError) {
+            return Response.json(
+              { error: error.message },
+              {
+                status: 429,
+                headers: { 'retry-after': String(error.retryAfterSeconds) },
+              },
+            )
+          }
+          if (error instanceof ProfileNotReadyError) {
+            return Response.json({ error: error.message }, { status: 503 })
           }
           throw error
         }

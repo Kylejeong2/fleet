@@ -7,6 +7,10 @@ const ResponseSchema = z.object({
   id: z.string(),
   status: z.enum(['queued', 'in_progress', 'completed', 'failed', 'cancelled']),
   output: z.array(z.unknown()).default([]),
+  usage: z.object({
+    input_tokens: z.number().int().nonnegative(),
+    output_tokens: z.number().int().nonnegative(),
+  }).optional(),
 })
 
 const FunctionCallSchema = z.object({
@@ -81,6 +85,8 @@ export class SailWorkerModel implements WorkerModel {
     private readonly apiKey: string,
     private readonly baseUrl = 'https://api.sailresearch.com/v1',
     private readonly model = 'deepseek-ai/DeepSeek-V4-Flash',
+    private readonly inputUsdPerMillion?: number,
+    private readonly outputUsdPerMillion?: number,
   ) {
     this.name = `sail:${model}`
   }
@@ -153,6 +159,19 @@ export class SailWorkerModel implements WorkerModel {
       .map((item) => item.text.trim())
       .filter(Boolean)
     const reasoning = [...new Set(reasoningParts)].join('\n')
+    const usage = payload.usage ? {
+      id: `sail:${payload.id}`,
+      inputTokens: payload.usage.input_tokens,
+      outputTokens: payload.usage.output_tokens,
+      costUsd: this.inputUsdPerMillion === undefined || this.outputUsdPerMillion === undefined
+        ? null
+        : (
+            payload.usage.input_tokens * this.inputUsdPerMillion +
+            payload.usage.output_tokens * this.outputUsdPerMillion
+          ) / 1_000_000,
+      provider: 'sail',
+      model: this.model,
+    } : undefined
     for (const item of payload.output) {
       const functionCall = FunctionCallSchema.safeParse(item)
       if (!functionCall.success) continue
@@ -163,6 +182,7 @@ export class SailWorkerModel implements WorkerModel {
           kind: 'tool-call',
           call: { kind: 'search', ...arguments_ },
           reasoning: reasoning || arguments_.reasoning,
+          ...(usage ? { usage } : {}),
         }
       }
       const arguments_ = FetchArgumentsSchema.parse(parsedArguments)
@@ -170,6 +190,7 @@ export class SailWorkerModel implements WorkerModel {
         kind: 'tool-call',
         call: { kind: 'fetch', ...arguments_ },
         reasoning: reasoning || arguments_.reasoning,
+        ...(usage ? { usage } : {}),
       }
     }
     const finding = payload.output
@@ -180,7 +201,12 @@ export class SailWorkerModel implements WorkerModel {
       .join('')
       .trim()
     if (!finding) throw new Error('Sail returned no finding or tool call')
-    return { kind: 'finding', finding, ...(reasoning ? { reasoning } : {}) }
+    return {
+      kind: 'finding',
+      finding,
+      ...(reasoning ? { reasoning } : {}),
+      ...(usage ? { usage } : {}),
+    }
   }
 
   async #request(

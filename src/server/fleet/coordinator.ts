@@ -15,7 +15,13 @@ import type {
   Synthesizer,
   SynthesisInput,
   WorkerModel,
+  ProviderUsage,
 } from './ports'
+
+export type RunExecutionContext = {
+  userId?: string
+  onUsage?: (usage: ProviderUsage) => Promise<void>
+}
 
 const LENSES = [
   'definitions and framing',
@@ -60,7 +66,11 @@ export class RunCoordinator {
     private readonly synthesizer: Synthesizer,
   ) {}
 
-  async run(runId: RunId, input: CreateRunInput): Promise<void> {
+  async run(
+    runId: RunId,
+    input: CreateRunInput,
+    context: RunExecutionContext = {},
+  ): Promise<void> {
     if (this.#active.has(runId)) {
       fleetLog('warn', 'run.duplicate_skipped', { run: runId })
       return
@@ -126,6 +136,7 @@ export class RunCoordinator {
               question: researchQuestion,
               ...assignment,
               signal,
+              onUsage: context.onUsage,
             })
             if (finding) findings.push(finding)
           }
@@ -167,7 +178,7 @@ export class RunCoordinator {
       }))
       let answer = ''
       for await (const part of this.synthesizer.stream(
-        { question: researchQuestion, findings },
+        { question: researchQuestion, findings, userId: context.userId, runId },
         signal,
       )) {
         if (part.kind === 'reasoning-delta') {
@@ -177,7 +188,7 @@ export class RunCoordinator {
             ...metadata,
             delta: part.delta,
           }))
-        } else {
+        } else if (part.kind === 'text-delta') {
           answer += part.delta
           this.journal.append(runId, (metadata) => ({
             kind: 'synthesis.delta',
@@ -185,6 +196,8 @@ export class RunCoordinator {
             ...metadata,
             delta: part.delta,
           }))
+        } else {
+          await context.onUsage?.(part.usage)
         }
       }
       this.journal.append(runId, (metadata) => ({
@@ -228,6 +241,7 @@ export class RunCoordinator {
     objective: string
     question: string
     signal: AbortSignal
+    onUsage?: (usage: ProviderUsage) => Promise<void>
   }): Promise<SynthesisInput['findings'][number] | null> {
     const agentStartedAt = Date.now()
     this.journal.append(args.runId, (metadata) => ({
@@ -279,6 +293,7 @@ export class RunCoordinator {
           },
           args.signal,
         )
+        if (response.usage) await args.onUsage?.(response.usage)
         fleetLog('info', 'worker.responded', {
           run: args.runId,
           agent: logAgentId(args.agentId),

@@ -121,6 +121,56 @@ const createAcceptedRun = (journal: FleetJournal, input: CreateRunInput) => {
 }
 
 describe('RunCoordinator', () => {
+  it('reports worker and synthesis usage through one run callback', async () => {
+    const journal = new FleetJournal(':memory:')
+    const input = runInput(1, 1)
+    const runId = createAcceptedRun(journal, input)
+    const charges: string[] = []
+    const worker: WorkerModel = {
+      name: 'metered-worker',
+      async respond() {
+        return {
+          kind: 'finding',
+          finding: 'Metered evidence',
+          usage: {
+            id: 'worker-usage',
+            inputTokens: 10,
+            outputTokens: 5,
+            costUsd: 0.001,
+            provider: 'test',
+            model: 'worker',
+          },
+        }
+      },
+    }
+    const synthesizer: Synthesizer = {
+      name: 'metered-synthesizer',
+      async *stream() {
+        yield { kind: 'text-delta', delta: 'Answer' }
+        yield {
+          kind: 'usage',
+          usage: {
+            id: 'synthesis-usage',
+            inputTokens: 20,
+            outputTokens: 10,
+            costUsd: 0.002,
+            provider: 'test',
+            model: 'synthesizer',
+          },
+        }
+      },
+    }
+
+    await new RunCoordinator(journal, worker, new Tools(), synthesizer).run(
+      runId,
+      input,
+      { onUsage: async (usage) => { charges.push(usage.id) } },
+    )
+
+    expect(charges).toEqual(['worker-usage', 'synthesis-usage'])
+    journal.close()
+  })
+
   it('researches follow-ups with prior conversation context while preserving the visible question', async () => {
     const journal = new FleetJournal(':memory:')
     const input = {

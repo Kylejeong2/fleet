@@ -5,6 +5,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiV1RunsRouteImport } from './routes/api/v1/runs'
+import { Route as ApiV1UsageRouteImport } from './routes/api/v1/usage'
 import { Route as ApiV1RunsRunIdRouteImport } from './routes/api/v1/runs/$runId'
 import { Route as ApiV1RunsRunIdEventsRouteImport } from './routes/api/v1/runs/$runId/events'
 
@@ -16,6 +17,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiV1RunsRoute = ApiV1RunsRouteImport.update({
   id: '/api/v1/runs',
   path: '/api/v1/runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1UsageRoute = ApiV1UsageRouteImport.update({
+  id: '/api/v1/usage',
+  path: '/api/v1/usage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1RunsRunIdRoute = ApiV1RunsRunIdRouteImport.update({
@@ -32,12 +38,14 @@ const ApiV1RunsRunIdEventsRoute = ApiV1RunsRunIdEventsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/v1/runs': typeof ApiV1RunsRouteWithChildren
+  '/api/v1/usage': typeof ApiV1UsageRoute
   '/api/v1/runs/$runId': typeof ApiV1RunsRunIdRouteWithChildren
   '/api/v1/runs/$runId/events': typeof ApiV1RunsRunIdEventsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/v1/runs': typeof ApiV1RunsRouteWithChildren
+  '/api/v1/usage': typeof ApiV1UsageRoute
   '/api/v1/runs/$runId': typeof ApiV1RunsRunIdRouteWithChildren
   '/api/v1/runs/$runId/events': typeof ApiV1RunsRunIdEventsRoute
 }
@@ -45,20 +53,30 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/v1/runs': typeof ApiV1RunsRouteWithChildren
+  '/api/v1/usage': typeof ApiV1UsageRoute
   '/api/v1/runs/$runId': typeof ApiV1RunsRunIdRouteWithChildren
   '/api/v1/runs/$runId/events': typeof ApiV1RunsRunIdEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/api/v1/runs' | '/api/v1/runs/$runId' | '/api/v1/runs/$runId/events'
+    | '/'
+    | '/api/v1/runs'
+    | '/api/v1/usage'
+    | '/api/v1/runs/$runId'
+    | '/api/v1/runs/$runId/events'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/api/v1/runs' | '/api/v1/runs/$runId' | '/api/v1/runs/$runId/events'
+    | '/'
+    | '/api/v1/runs'
+    | '/api/v1/usage'
+    | '/api/v1/runs/$runId'
+    | '/api/v1/runs/$runId/events'
   id:
     | '__root__'
     | '/'
     | '/api/v1/runs'
+    | '/api/v1/usage'
     | '/api/v1/runs/$runId'
     | '/api/v1/runs/$runId/events'
   fileRoutesById: FileRoutesById
@@ -66,6 +84,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiV1RunsRoute: typeof ApiV1RunsRouteWithChildren
+  ApiV1UsageRoute: typeof ApiV1UsageRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +101,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/runs'
       fullPath: '/api/v1/runs'
       preLoaderRoute: typeof ApiV1RunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/usage': {
+      id: '/api/v1/usage'
+      path: '/api/v1/usage'
+      fullPath: '/api/v1/usage'
+      preLoaderRoute: typeof ApiV1UsageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/runs/$runId': {
@@ -128,6 +154,7 @@ const ApiV1RunsRouteWithChildren = ApiV1RunsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiV1RunsRoute: ApiV1RunsRouteWithChildren,
+  ApiV1UsageRoute: ApiV1UsageRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

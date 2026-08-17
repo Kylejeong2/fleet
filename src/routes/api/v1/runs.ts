@@ -5,7 +5,11 @@ import {
   IdempotencyConflictError,
   ProfileNotReadyError,
 } from '../../../server/fleet/service'
-import { getFleetRuntime, RunStartPendingError } from '../../../server/fleet/runtime'
+import {
+  AdmissionRejectedError,
+  getFleetRuntime,
+  RunStartPendingError,
+} from '../../../server/fleet/runtime'
 import {
   requireFleetActor,
   UnauthenticatedError,
@@ -49,6 +53,15 @@ export const Route = createFileRoute('/api/v1/runs')({
             return Response.json(
               { error: error.message },
               { status: 425, headers: { 'retry-after': '1' } },
+            )
+          }
+          if (error instanceof AdmissionRejectedError) {
+            return Response.json(
+              { error: error.message, reason: error.reason },
+              {
+                status: error.reason === 'global_capacity' ? 503 : 429,
+                headers: { 'retry-after': String(error.retryAfterSeconds) },
+              },
             )
           }
           throw error

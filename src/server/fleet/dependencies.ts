@@ -10,6 +10,11 @@ import {
 import { GatewaySynthesizer } from './providers/gateway'
 import { SailWorkerModel } from './providers/sail'
 
+const OptionalNonnegativeNumber = z.preprocess(
+  (value) => value === '' || value === undefined ? undefined : value,
+  z.coerce.number().nonnegative().optional(),
+)
+
 const EnvironmentSchema = z.object({
   SAIL_API_KEY: z.string().min(1).optional(),
   BROWSERBASE_API_KEY: z.string().min(1).optional(),
@@ -17,6 +22,8 @@ const EnvironmentSchema = z.object({
   SAIL_BASE_URL: z.string().url().default('https://api.sailresearch.com/v1'),
   SAIL_RESEARCH_MODEL: z.string().default('deepseek-ai/DeepSeek-V4-Flash'),
   AI_GATEWAY_ORCHESTRATOR_MODEL: z.string().default('openai/gpt-5.6-sol'),
+  SAIL_INPUT_USD_PER_MILLION: OptionalNonnegativeNumber,
+  SAIL_OUTPUT_USD_PER_MILLION: OptionalNonnegativeNumber,
 })
 
 export class ProfileNotReadyError extends Error {}
@@ -48,6 +55,8 @@ export const createFleetDependencies = (
     environment.SAIL_API_KEY,
     environment.SAIL_BASE_URL,
     environment.SAIL_RESEARCH_MODEL,
+    environment.SAIL_INPUT_USD_PER_MILLION,
+    environment.SAIL_OUTPUT_USD_PER_MILLION,
   )
   const tools = new BrowserbaseResearchTools(environment.BROWSERBASE_API_KEY)
   if (profile === 'live-workers') {

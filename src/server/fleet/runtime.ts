@@ -27,6 +27,16 @@ import {
 import { createFleetEventStream, serializeFleetEvent } from './sse'
 import { ProfileNotReadyError } from './dependencies'
 import { fleetResearchWorkflow } from './workflow'
+import {
+  createAdmissionConfig,
+  RedisFleetPolicy,
+  type AdmissionLease,
+  type FleetPolicy,
+  type RequestKind,
+  type UsageSnapshot,
+} from './admission'
+
+export { AdmissionRejectedError } from './admission'
 
 export class RunStartPendingError extends Error {}
 
@@ -36,6 +46,8 @@ export interface FleetRuntime {
     idempotencyKey: string | null
     actor: FleetActor
   }): Promise<RunSnapshot>
+  checkRate(actor: FleetActor, kind: RequestKind): Promise<void>
+  usage(actor: FleetActor): Promise<UsageSnapshot>
   getRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot>
   createEventStream(
     actor: FleetActor,
@@ -50,7 +62,23 @@ class LocalFleetRuntime implements FleetRuntime {
     idempotencyKey: string | null
     actor: FleetActor
   }): Promise<RunSnapshot> {
-    return getFleetService().createRun(args)
+    const service = getFleetService()
+    await service.policy.checkRate(args.actor, 'create')
+    const lease = await service.policy.admit(args.actor, args.input)
+    try {
+      return service.createRun({ ...args, lease })
+    } catch (error) {
+      await service.policy.release(lease)
+      throw error
+    }
+  }
+
+  async checkRate(actor: FleetActor, kind: RequestKind): Promise<void> {
+    await getFleetService().policy.checkRate(actor, kind)
+  }
+
+  async usage(actor: FleetActor): Promise<UsageSnapshot> {
+    return getFleetService().usage(actor)
   }
 
   async getRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot> {
@@ -71,6 +99,7 @@ export class WorkflowFleetRuntime implements FleetRuntime {
   constructor(
     private readonly idempotency: IdempotencyStore | null,
     private readonly ownership: RunOwnershipStore | null,
+    private readonly policy: FleetPolicy | null,
   ) {}
 
   async createRun(args: {
@@ -78,12 +107,21 @@ export class WorkflowFleetRuntime implements FleetRuntime {
     idempotencyKey: string | null
     actor: FleetActor
   }): Promise<RunSnapshot> {
-    if (!this.idempotency || !this.ownership) {
+    if (!this.idempotency || !this.ownership || !this.policy) {
       throw new ProfileNotReadyError(
-        'Workflow mode requires a Redis integration for run ownership and idempotency.',
+        'Workflow mode requires Redis for ownership, admission, usage, and idempotency.',
       )
     }
-    if (!args.idempotencyKey) return this.startOwnedRun(args.input, args.actor)
+    await this.policy.checkRate(args.actor, 'create')
+    if (!args.idempotencyKey) {
+      const lease = await this.policy.admit(args.actor, args.input)
+      try {
+        return await this.startOwnedRun(args.input, args.actor, lease)
+      } catch (error) {
+        await this.policy.release(lease)
+        throw error
+      }
+    }
     const reservation = await this.idempotency.reserve(
       args.actor.tenantId,
       args.idempotencyKey,
@@ -100,10 +138,23 @@ export class WorkflowFleetRuntime implements FleetRuntime {
     if (reservation.kind === 'existing') {
       return this.getRunOrAccepted(args.actor, reservation.runId, args.input)
     }
+    let lease: AdmissionLease
+    try {
+      lease = await this.policy.admit(args.actor, args.input)
+    } catch (error) {
+      await this.idempotency.release(
+        args.actor.tenantId,
+        args.idempotencyKey,
+        reservation.token,
+        reservation.requestHash,
+      )
+      throw error
+    }
     let snapshot: RunSnapshot
     try {
-      snapshot = await this.startOwnedRun(args.input, args.actor)
+      snapshot = await this.startOwnedRun(args.input, args.actor, lease)
     } catch (error) {
+      await this.policy.release(lease)
       await this.idempotency.release(
         args.actor.tenantId,
         args.idempotencyKey,
@@ -127,6 +178,16 @@ export class WorkflowFleetRuntime implements FleetRuntime {
       })
     }
     return snapshot
+  }
+
+  async checkRate(actor: FleetActor, kind: RequestKind): Promise<void> {
+    if (!this.policy) throw new ProfileNotReadyError('Workflow mode requires Redis.')
+    await this.policy.checkRate(actor, kind)
+  }
+
+  async usage(actor: FleetActor): Promise<UsageSnapshot> {
+    if (!this.policy) throw new ProfileNotReadyError('Workflow mode requires Redis.')
+    return this.policy.usage(actor)
   }
 
   async getRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot> {
@@ -174,18 +235,23 @@ export class WorkflowFleetRuntime implements FleetRuntime {
     })
   }
 
-  private async startRun(input: CreateRunInput): Promise<RunSnapshot> {
-    const run = await start(fleetResearchWorkflow, [input])
+  private async startRun(
+    input: CreateRunInput,
+    actor: FleetActor,
+    lease: AdmissionLease,
+  ): Promise<RunSnapshot> {
+    const run = await start(fleetResearchWorkflow, [input, actor, lease])
     return acceptedSnapshot(parseRunId(run.runId), input)
   }
 
   private async startOwnedRun(
     input: CreateRunInput,
     actor: FleetActor,
+    lease: AdmissionLease,
   ): Promise<RunSnapshot> {
-    const snapshot = await this.startRun(input)
+    const snapshot = await this.startRun(input, actor, lease)
     try {
-      await this.ownership!.put(snapshot.id, actor)
+      await this.ownership!.put(snapshot.id, actor, lease.id)
     } catch (error) {
       await getRun(snapshot.id).cancel().catch(() => undefined)
       throw error
@@ -274,9 +340,13 @@ export const getFleetRuntime = (): FleetRuntime => {
     (process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN),
   )
   const command = hasRedis ? createRedisCommand(process.env) : null
+  const policy = command
+    ? new RedisFleetPolicy(command, createAdmissionConfig(process.env))
+    : null
   singleton = new WorkflowFleetRuntime(
     hasRedis ? createRedisIdempotencyStore(process.env) : null,
     command ? new RedisRunOwnershipStore(command) : null,
+    policy,
   )
   return singleton
 }

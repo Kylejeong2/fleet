@@ -12,13 +12,24 @@ Every factual paragraph must include inline Markdown links to the supporting sou
 
 const oneLine = (value: string): string => value.replace(/\s+/g, ' ').trim()
 
-type GatewayStreamPart = { type: string; text?: string }
+type GatewayStreamPart = {
+  type: string
+  text?: string
+  providerMetadata?: Record<string, Record<string, unknown>>
+  totalUsage?: { inputTokens?: number; outputTokens?: number }
+}
 
 export async function* mapGatewayStream(
   parts: AsyncIterable<GatewayStreamPart>,
+  options?: { model: string },
 ): AsyncIterable<SynthesisStreamPart> {
   let hasReasoningBlock = false
+  let generationId: string | undefined
+  let totalUsage: GatewayStreamPart['totalUsage']
   for await (const part of parts) {
+    const candidate = part.providerMetadata?.gateway?.generationId
+    if (typeof candidate === 'string') generationId = candidate
+    if (part.type === 'finish') totalUsage = part.totalUsage
     if (part.type === 'reasoning-start') {
       if (hasReasoningBlock) yield { kind: 'reasoning-delta', delta: '\n\n' }
       hasReasoningBlock = true
@@ -28,6 +39,37 @@ export async function* mapGatewayStream(
     } else if (part.type === 'text-delta' && typeof part.text === 'string') {
       yield { kind: 'text-delta', delta: part.text }
     }
+  }
+  if (!options) return
+  if (generationId) {
+    try {
+      const generation = await gateway.getGenerationInfo({ id: generationId })
+      yield {
+        kind: 'usage',
+        usage: {
+          id: `gateway:${generation.id}`,
+          inputTokens: generation.promptTokens,
+          outputTokens: generation.completionTokens,
+          costUsd: generation.totalCost,
+          provider: 'vercel-ai-gateway',
+          model: generation.model,
+        },
+      }
+      return
+    } catch {
+      // Token accounting remains available when the optional cost lookup fails.
+    }
+  }
+  yield {
+    kind: 'usage',
+    usage: {
+      id: `gateway-unpriced:${crypto.randomUUID()}`,
+      inputTokens: totalUsage?.inputTokens ?? 0,
+      outputTokens: totalUsage?.outputTokens ?? 0,
+      costUsd: null,
+      provider: 'vercel-ai-gateway',
+      model: options.model,
+    },
   }
 }
 
@@ -60,9 +102,18 @@ export class GatewaySynthesizer implements Synthesizer {
       model: gateway(this.model),
       abortSignal: signal,
       reasoning: ORCHESTRATOR_REASONING,
+      maxOutputTokens: 16_000,
       system: SYNTHESIS_SYSTEM_PROMPT,
       prompt: buildSynthesisPrompt(input),
+      ...(input.userId ? {
+        providerOptions: {
+          gateway: {
+            user: input.userId,
+            tags: ['fleet', ...(input.runId ? [`run:${input.runId}`] : [])],
+          },
+        },
+      } : {}),
     })
-    yield* mapGatewayStream(result.fullStream)
+    yield* mapGatewayStream(result.fullStream, { model: this.model })
   }
 }
