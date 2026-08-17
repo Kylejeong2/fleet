@@ -6,7 +6,7 @@ When inference is cheap enough, breadth becomes a feature. Fleet spends addition
 
 ## What is included
 
-- A TanStack Start chat interface with live orchestration activity in the conversation plus a compact fleet modal and per-agent trace drawer.
+- A Clerk-authenticated TanStack Start chat interface with live orchestration activity in the conversation plus a compact fleet modal and per-agent trace drawer.
 - An HTTP research service that is independent of React and reusable by other clients.
 - A replayable Server-Sent Events protocol backed locally by SQLite and on Vercel by a durable Workflow stream.
 - Durable, bounded parallel workers with isolated failures, exponential retries, and explicit provider activity.
@@ -37,7 +37,7 @@ pnpm check
 
 Fleet automatically selects its Vercel Workflow runtime when `VERCEL` is present. A request starts one durable workflow, fans research agents into concurrency-bounded step batches, and returns immediately with a Workflow run ID. Agents and synthesis can retry independently without depending on the lifetime of the HTTP function that accepted the run.
 
-Configure the provider variables in `.env.example`. Add a Vercel KV or Upstash Redis integration if callers use `Idempotency-Key`; Redis stores only the short request-to-workflow reservation, while Workflow owns execution state and the resumable event stream. `FLEET_EXECUTION_MODE=workflow` can force this path outside Vercel, and `local` can force the SQLite path.
+Configure Clerk, the provider variables, and a Vercel KV or Upstash Redis integration from `.env.example`. Redis stores tenant ownership plus the short request-to-workflow reservation, while Workflow owns execution state and the resumable event stream. `FLEET_EXECUTION_MODE=workflow` can force this path outside Vercel, and `local` can force the SQLite path.
 
 ## Documentation
 

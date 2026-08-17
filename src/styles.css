@@ -460,3 +460,36 @@ details[open] > summary .reasoning-chevron { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+/* Authentication gate */
+.auth-gate {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+  background: var(--page-background, #f7f8fa);
+  color: var(--text-primary, #152033);
+}
+
+.auth-gate h1,
+.auth-gate p {
+  margin: 0;
+}
+
+.auth-gate p {
+  max-width: 30rem;
+  color: var(--text-secondary, #5f6b7a);
+}
+
+.auth-gate-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.75rem 1.2rem;
+  font: inherit;
+  font-weight: 650;
+  color: white;
+  background: #17223b;
+  cursor: pointer;
+}

@@ -1,5 +1,6 @@
 import type { FleetEvent, RunId } from '../../lib/fleet-protocol'
 import type { FleetService } from './service'
+import type { FleetActor } from '../auth'
 
 const encoder = new TextEncoder()
 
@@ -10,6 +11,7 @@ export const serializeFleetEvent = (event: FleetEvent): Uint8Array =>
 
 export const createFleetEventStream = (
   service: FleetService,
+  actor: FleetActor,
   runId: RunId,
   after: number,
 ): ReadableStream<Uint8Array> => {
@@ -29,12 +31,12 @@ export const createFleetEventStream = (
         }
         pumping = true
         try {
-          const events = service.events(runId, cursor)
+          const events = service.events(actor, runId, cursor)
           for (const event of events) {
             controller.enqueue(serializeFleetEvent(event))
             cursor = event.sequence
           }
-          const snapshot = service.getRun(runId)
+          const snapshot = service.getRun(actor, runId)
           if (snapshot.status === 'completed' || snapshot.status === 'failed') {
             closed = true
             unsubscribe()

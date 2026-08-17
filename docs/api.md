@@ -2,6 +2,8 @@
 
 Fleet exposes a small versioned contract under `/api/v1`. JSON request and response bodies are validated at the boundary.
 
+Every operation requires a Clerk session cookie or supported bearer token. A run belongs to the active Clerk organization, falling back to the creating user for personal accounts. Reads from another tenant return `404`.
+
 ## Create a run
 
 ```http
@@ -26,7 +28,7 @@ Constraints:
 - `concurrency` is between 1 and 8.
 - `profile` is `development`, `live-workers`, or `live`.
 
-The service responds as soon as the run is durably accepted. Provider work continues asynchronously. Repeating the same body and `Idempotency-Key` returns the original run. Reusing the key with a different body returns a conflict.
+The service responds as soon as the run is durably accepted. Provider work continues asynchronously. Repeating the same body and `Idempotency-Key` within the same tenant returns the original run. Reusing the key with a different body returns a conflict. The same key can be used independently by another tenant.
 
 On Vercel, accepted IDs use the `wrun_…` Workflow format. A concurrent duplicate may briefly return `425 Too Early` with `Retry-After: 1` while its atomic idempotency reservation is being committed. Callers should retry the same request and key.
 

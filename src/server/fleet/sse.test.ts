@@ -44,7 +44,8 @@ describe('Fleet SSE stream', () => {
       profile: 'development',
     }
     const runId = createRunId()
-    journal.createRun({ runId, input, idempotencyKey: null })
+    const actor = { tenantId: 'tenant_1', userId: 'user_1' }
+    journal.createRun({ runId, input, idempotencyKey: null, actor })
     const coordinator = new RunCoordinator(
       journal,
       new Worker(),
@@ -53,7 +54,7 @@ describe('Fleet SSE stream', () => {
     )
     await coordinator.run(runId, input)
     const service = new FleetService(journal, () => coordinator)
-    const response = new Response(createFleetEventStream(service, runId, 1))
+    const response = new Response(createFleetEventStream(service, actor, runId, 1))
     const body = await response.text()
     expect(body).not.toContain('id: 1\n')
     expect(body).toContain('event: agent.planned')

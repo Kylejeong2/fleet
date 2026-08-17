@@ -6,7 +6,7 @@ The same HTTP contract has two runtime adapters. Local development uses a single
 
 ## Caller contract
 
-Clients use three operations.
+Authenticated clients use three operations.
 
 ```http
 POST /api/v1/runs
@@ -54,7 +54,9 @@ The Workflow writable stream is the production event journal. Routes rebuild a s
 
 `FleetRuntime` is the boundary used by the routes. `LocalFleetRuntime` keeps SQLite and the in-process coordinator for fast deterministic development. `WorkflowFleetRuntime` owns Vercel execution. The protocol, reducer, and browser do not know which adapter produced the events.
 
-Workflow start does not accept an application idempotency key. Fleet therefore uses an atomic Redis reservation only when a caller supplies `Idempotency-Key`. It maps the request hash to the Workflow run ID and rejects conflicting reuse. Workflow remains the source of truth for the run itself.
+Clerk middleware authenticates browser sessions and bearer tokens. The server derives a tenant from the active Clerk organization, or from the user ID for a personal account. Every create, snapshot, and event-stream operation crosses the same tenant-ownership seam. Unknown and foreign run IDs both return `404`, so run identifiers never act as bearer credentials.
+
+Workflow start does not accept an application idempotency key. Fleet therefore uses Redis for the run-to-tenant record and for atomic idempotency reservations when a caller supplies `Idempotency-Key`. Idempotency keys are tenant-namespaced, map the request hash to the Workflow run ID, and reject conflicting reuse. Workflow remains the source of truth for execution and the event stream.
 
 ## Provider boundaries
 
@@ -92,7 +94,7 @@ The main conversation owns the live orchestrator messages, subagent reasoning su
 
 ## Production boundaries
 
-Vercel Workflow supplies durable orchestration, queueing, retry, and event streaming. Redis is limited to HTTP idempotency reservations; Fleet does not use it as a queue or event broker. Cancellation, encrypted artifacts, tenant admission limits, and retention controls remain separate production concerns.
+Vercel Workflow supplies durable orchestration, queueing, retry, and event streaming. Redis stores HTTP idempotency reservations and the minimal ownership record; Fleet does not use it as a queue or event broker. Cancellation, encrypted artifacts, tenant admission limits, and retention controls remain separate production concerns.
 
 ## Design synthesis
 

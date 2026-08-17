@@ -4,6 +4,7 @@ import {
   Scripts,
   createRootRoute,
 } from '@tanstack/react-router'
+import { ClerkProvider } from '@clerk/tanstack-react-start'
 
 import stylesUrl from '../styles.css?url'
 
@@ -48,7 +49,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <ClerkProvider>{children}</ClerkProvider>
         <Scripts />
       </body>
     </html>
