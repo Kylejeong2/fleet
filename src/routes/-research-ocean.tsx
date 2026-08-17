@@ -199,15 +199,15 @@ function useThreeOcean(
     const routes: THREE.Line[] = []
     for (let index = 0; index < boatCount; index += 1) {
       const preview = hero && liveState.current.agents[0]?.status === 'preview'
-      const boat = createBoat(preview ? .6 : .34)
+      const boat = createBoat(preview ? .65 : .34)
       boat.userData.agentIndex = index
       boat.userData.progress = preview ? .5 : 0
       boats.push(boat)
       scene.add(boat)
 
       if (preview) {
-        boat.userData.anchor = new THREE.Vector3(6.55, -.78, 3.35)
-        boat.rotation.y = -.66
+        boat.userData.anchor = new THREE.Vector3(4.75, -.79, 3.05)
+        boat.rotation.y = -.9
         continue
       }
 
@@ -266,9 +266,9 @@ function useThreeOcean(
       const previewBoat = hero && liveState.current.agents[0]?.status === 'preview' ? boats[0] : undefined
       if (previewBoat) {
         const narrow = width < 620
-        previewBoat.scale.setScalar(narrow ? .52 : .6)
-        ;(previewBoat.userData.anchor as THREE.Vector3).set(narrow ? 1.85 : 6.55, narrow ? -.82 : -.78, narrow ? 5.25 : 3.35)
-        previewBoat.rotation.y = narrow ? -.45 : -.66
+        previewBoat.scale.setScalar(narrow ? .55 : .65)
+        ;(previewBoat.userData.anchor as THREE.Vector3).set(narrow ? 1.25 : 4.75, narrow ? -.84 : -.79, narrow ? 4.75 : 3.05)
+        previewBoat.rotation.y = narrow ? -.68 : -.9
       }
       renderer.setSize(width, height, false)
       composer.setSize(width, height)
@@ -307,8 +307,8 @@ function useThreeOcean(
         const preview = agent.status === 'preview'
         if (preview) {
           boat.position.copy(boat.userData.anchor as THREE.Vector3)
-          boat.position.x += reducedMotion ? 0 : Math.sin(elapsed * .11) * .12
-          boat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.35) * .055
+          boat.position.x += reducedMotion ? 0 : Math.sin(elapsed * .11) * .1
+          boat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.35) * .05
           boat.rotation.z = reducedMotion ? 0 : Math.sin(elapsed * 1.05) * .025
           boat.visible = true
           return
@@ -328,7 +328,7 @@ function useThreeOcean(
         const tangent = curve.getTangent(progress)
         boat.position.copy(point)
         boat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.75 + index * .61) * .045
-        boat.rotation.y = Math.atan2(tangent.x, tangent.z)
+        boat.rotation.y = THREE.MathUtils.clamp(Math.atan2(tangent.x, tangent.z), -.9, .9)
         boat.rotation.z = reducedMotion ? 0 : Math.sin(elapsed * 1.3 + index) * .035
         const failed = agent.status === 'failed' || agent.retrying
         setBoatColor(boat, failed ? 0xff4f5e : agent.status === 'succeeded' ? 0xffd76a : 0x72fff2)
@@ -610,77 +610,116 @@ function seededRandom(seed: number): () => number {
 function createBoat(scale: number): THREE.Group {
   const boat = new THREE.Group()
   boat.scale.setScalar(scale)
-  const hullMaterial = new THREE.MeshPhysicalMaterial({ color: 0x0b4b57, roughness: .28, metalness: .12, clearcoat: .82, clearcoatRoughness: .2, emissive: 0x07353c, emissiveIntensity: .62 })
-  const trimMaterial = new THREE.MeshStandardMaterial({ color: 0xe6fff9, roughness: .42, emissive: 0x47bdb2, emissiveIntensity: .3 })
-  const sailMaterial = new THREE.MeshPhysicalMaterial({ color: 0xd9e9df, roughness: .76, side: THREE.DoubleSide, transparent: true, opacity: .94, emissive: 0x245d57, emissiveIntensity: .08 })
-  const mastMaterial = new THREE.MeshStandardMaterial({ color: 0xb8d6cf, metalness: .22, roughness: .5 })
+  const hullMaterial = new THREE.MeshPhysicalMaterial({ color: 0x17636c, roughness: .3, metalness: .08, clearcoat: .9, clearcoatRoughness: .18, emissive: 0x0b3940, emissiveIntensity: .46 })
+  const deckMaterial = new THREE.MeshStandardMaterial({ color: 0x8c7256, roughness: .72, metalness: .02 })
+  const sailMaterial = new THREE.MeshBasicMaterial({ color: 0xd6e5df, side: THREE.DoubleSide, transparent: true, opacity: .9 })
+  const mastMaterial = new THREE.MeshStandardMaterial({ color: 0x9d7953, metalness: .05, roughness: .72 })
+  const riggingMaterial = new THREE.LineBasicMaterial({ color: 0xb8d4cd, transparent: true, opacity: .58 })
   const hull = new THREE.Mesh(createHullGeometry(), hullMaterial)
   hull.position.y = .02
   hull.userData.boatSurface = true
   boat.add(hull)
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(.66, .075, 1.42), trimMaterial)
-  deck.position.set(0, .14, -.04)
+  const deck = new THREE.Mesh(createDeckGeometry(), deckMaterial)
+  deck.position.y = .14
   deck.userData.boatSurface = true
   boat.add(deck)
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.022, .03, 1.65, 10), mastMaterial)
-  mast.position.set(0, .92, .08)
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(.38, .17, .38), deckMaterial)
+  cabin.position.set(0, .24, -.45)
+  cabin.userData.boatSurface = true
+  boat.add(cabin)
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.018, .03, 1.82, 10), mastMaterial)
+  mast.position.set(0, 1.04, .08)
   mast.userData.boatSurface = true
   boat.add(mast)
-  const boom = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, .88, 8), mastMaterial)
-  boom.position.set(.38, .72, .08)
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(.014, .018, .92, 8), mastMaterial)
+  boom.position.set(.4, .72, .08)
   boom.rotation.z = Math.PI / 2
   boom.userData.boatSurface = true
   boat.add(boom)
   boat.add(
-    createSail([.035, .35, .08, .035, 1.7, .08, .92, .46, .08], sailMaterial),
-    createSail([-.035, .4, .04, -.035, 1.55, .04, -.74, .46, .04], sailMaterial),
+    createBillowedSail(1, 1.03, 1.38, .36, .085, sailMaterial),
+    createBillowedSail(-1, .78, 1.16, .43, .045, sailMaterial),
+    createRiggingLine([[0, 1.93, .08], [1.03, .45, .085]], riggingMaterial),
+    createRiggingLine([[0, 1.93, .08], [-.78, .47, .045]], riggingMaterial),
+    createRiggingLine([[0, 1.93, .08], [0, .13, 1.48]], riggingMaterial),
   )
   const lantern = new THREE.Mesh(
-    new THREE.SphereGeometry(.055, 12, 8),
+    new THREE.SphereGeometry(.052, 12, 8),
     new THREE.MeshBasicMaterial({ color: 0xffe8a3 }),
   )
-  lantern.position.set(.2, .3, -.45)
+  lantern.position.set(.22, .39, -.42)
   boat.add(lantern)
-  const glow = new THREE.PointLight(0xffd991, .32, 1.8, 2)
-  glow.position.copy(lantern.position)
-  boat.add(glow)
-  const wakeMaterial = new THREE.LineBasicMaterial({ color: 0xa9fff8, transparent: true, opacity: .32, blending: THREE.AdditiveBlending })
+  const wakeMaterial = new THREE.LineBasicMaterial({ color: 0xa9fff8, transparent: true, opacity: .22, blending: THREE.AdditiveBlending })
   boat.add(createWakeTrail(-.23, wakeMaterial), createWakeTrail(.23, wakeMaterial))
   return boat
 }
 
 function createHullGeometry(): THREE.BufferGeometry {
-  const positions = new Float32Array([
-    0, -.03, 1.62,
-    -.58, .1, .45,
-    -.5, .08, -1.05,
-    .5, .08, -1.05,
-    .58, .1, .45,
-    0, -.42, .48,
-    0, -.34, -.95,
-  ])
-  const indices = [
-    0, 1, 5, 0, 5, 4,
-    1, 2, 6, 1, 6, 5,
-    4, 5, 6, 4, 6, 3,
-    2, 3, 6,
-    0, 4, 3, 0, 3, 2, 0, 2, 1,
-  ]
+  const geometry = new THREE.SphereGeometry(.72, 28, 14, 0, Math.PI * 2, 0, Math.PI * .57)
+  geometry.scale(.72, .48, 1.72)
+  geometry.rotateZ(Math.PI)
+  return geometry
+}
+
+function createDeckGeometry(): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-  geometry.setIndex(indices)
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([
+    -.37, 0, -1, .37, 0, -1, -.56, 0, -.1, .56, 0, -.1, -.48, 0, .7, .48, 0, .7, 0, 0, 1.42,
+  ], 3))
+  geometry.setIndex([0, 1, 2, 1, 3, 2, 2, 3, 4, 3, 5, 4, 4, 5, 6])
   geometry.computeVertexNormals()
   return geometry
 }
 
-function createSail(points: number[], material: THREE.Material): THREE.Mesh {
+function createBillowedSail(
+  side: -1 | 1,
+  width: number,
+  height: number,
+  bottom: number,
+  depth: number,
+  material: THREE.Material,
+): THREE.Mesh {
+  const segments = 7
+  const positions: number[] = []
+  const indices: number[] = []
+  const rows: number[][] = []
+  for (let mastWeight = 0; mastWeight <= segments; mastWeight += 1) {
+    const row: number[] = []
+    for (let outerWeight = 0; outerWeight <= segments - mastWeight; outerWeight += 1) {
+      const top = mastWeight / segments
+      const outer = outerWeight / segments
+      const base = 1 - top - outer
+      const x = side * width * outer
+      const y = bottom * base + (bottom + height) * top + (bottom + .08) * outer
+      const z = depth + 2.9 * base * top * outer
+      row.push(positions.length / 3)
+      positions.push(x, y, z)
+    }
+    rows.push(row)
+  }
+  for (let row = 0; row < segments; row += 1) {
+    for (let column = 0; column < segments - row; column += 1) {
+      const a = rows[row]![column]!
+      const b = rows[row + 1]![column]!
+      const c = rows[row]![column + 1]!
+      indices.push(a, b, c)
+      if (column < segments - row - 1) indices.push(b, rows[row + 1]![column + 1]!, c)
+    }
+  }
   const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setIndex(indices)
   geometry.computeVertexNormals()
   const sail = new THREE.Mesh(geometry, material)
-  sail.position.y = .04
   sail.userData.boatSurface = true
   return sail
+}
+
+function createRiggingLine(points: Array<[number, number, number]>, material: THREE.LineBasicMaterial): THREE.Line {
+  return new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(points.map(([x, y, z]) => new THREE.Vector3(x, y, z))),
+    material,
+  )
 }
 
 function createWakeTrail(side: number, material: THREE.LineBasicMaterial): THREE.Line {
