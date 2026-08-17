@@ -6,6 +6,7 @@ import { workflow } from 'workflow/vite'
 
 export default defineConfig(({ mode }) => ({
   server: {
+    port: 3000,
     watch: {
       ignored: ['**/.workflow-data/**', '**/.swc/**'],
     },
@@ -21,8 +22,5 @@ export default defineConfig(({ mode }) => ({
         ],
   resolve: {
     tsconfigPaths: true,
-  },
-  server: {
-    port: 3000,
   },
 }))
