@@ -124,6 +124,8 @@ describe('interface copy contract', () => {
     expect(oceanSource).toContain('setDestinationPinColor')
     expect(interfaceStyles).toContain('.ocean-canvas')
     expect(interfaceStyles).toContain('.welcome-transition.launch-exit')
+    expect(interfaceStyles).toContain('.welcome-transition.launch-exit .welcome-stage')
+    expect(interfaceStyles).toContain('animation: launch-search-away .9s')
     expect(interfaceStyles).toContain('@keyframes ocean-cave-in')
     expect(interfaceStyles).toContain('.ocean-atmosphere')
     expect(interfaceStyles).toContain('.ocean-agent-target.retrying')
