@@ -119,10 +119,10 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 
 .ocean-transition-frame { position: relative; width: 100%; min-height: 0; overflow: hidden; border-radius: 20px; isolation: isolate; }
 .ocean-transition-compact { height: 390px; margin: 4px 0 24px; }
-.ocean-morph-layer { position: absolute; z-index: 3; overflow: hidden; background: #020811; isolation: isolate; will-change: top, left, width, height, border-radius, box-shadow; }
+.ocean-morph-layer { position: absolute; z-index: 3; box-sizing: border-box; overflow: hidden; border: 1px solid transparent; background: #020811; isolation: isolate; will-change: top, left, width, height, border-radius, box-shadow; }
 .ocean-morph-layer.hero { top: 48px; left: 0; width: 100%; height: calc(100% - 48px); border-radius: 0; }
 .ocean-morph-layer.launching { pointer-events: none; animation: ocean-cave-in 1.8s both cubic-bezier(.4, 0, .2, 1); }
-.ocean-morph-layer.compact { top: var(--ocean-target-y); left: var(--ocean-target-x); width: var(--ocean-target-width); height: var(--ocean-target-height); border: 1px solid #1c4d57; border-radius: 20px; box-shadow: 0 30px 90px rgb(2 19 28 / 22%), 0 1px rgb(255 255 255 / 7%); transition: top .45s ease, left .45s ease, width .45s ease, height .45s ease; }
+.ocean-morph-layer.compact { top: var(--ocean-target-y); left: var(--ocean-target-x); width: var(--ocean-target-width); height: var(--ocean-target-height); border-color: #1c4d57; border-radius: 20px; box-shadow: 0 30px 90px rgb(2 19 28 / 22%), 0 1px rgb(255 255 255 / 7%); transition: top .45s ease, left .45s ease, width .45s ease, height .45s ease, border-color .25s ease; }
 .ocean-morph-layer .research-ocean { width: 100%; height: 100%; border: 0; border-radius: inherit; box-shadow: none; }
 .research-ocean { position: relative; width: 100%; height: 390px; overflow: hidden; border: 1px solid #1c4d57; border-radius: inherit; background: #020811; color: #c9fff9; box-shadow: inset 0 1px rgb(170 255 247 / 9%), inset 0 -50px 90px rgb(0 5 10 / 28%), 0 18px 50px rgb(0 0 0 / 18%); isolation: isolate; }
 .ocean-loading { display: grid; place-items: center; background: radial-gradient(circle at 50% 58%, #0b373b, #020b12 58%); color: #78a5a1; font-size: 12px; }

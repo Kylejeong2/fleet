@@ -307,11 +307,15 @@ function useThreeOcean(
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
 
+    let renderWidth = 0
+    let renderHeight = 0
     const resizeCanvas = (force = false) => {
-      if (liveState.current.phase === 'morphing' && !force) return
       const rect = canvas.getBoundingClientRect()
-      const width = Math.max(1, rect.width)
-      const height = Math.max(1, rect.height)
+      const width = Math.max(1, Math.round(rect.width))
+      const height = Math.max(1, Math.round(rect.height))
+      if (!force && width === renderWidth && height === renderHeight) return
+      renderWidth = width
+      renderHeight = height
       if (liveState.current.phase === 'hero') {
         const narrow = width < 620
         heroBoatPosition.set(narrow ? 1.25 : 4.75, narrow ? -.84 : -.79, narrow ? 4.75 : 3.05)
@@ -322,13 +326,6 @@ function useThreeOcean(
       camera.aspect = width / height
       camera.updateProjectionMatrix()
     }
-    let resizeTimer = 0
-    const resizeObserver = new ResizeObserver(() => {
-      if (liveState.current.phase === 'morphing') return
-      window.clearTimeout(resizeTimer)
-      resizeTimer = window.setTimeout(() => resizeCanvas(true), 480)
-    })
-    resizeObserver.observe(canvas)
     resizeCanvas(true)
 
     const timer = new THREE.Timer()
@@ -342,10 +339,11 @@ function useThreeOcean(
       const elapsed = timer.getElapsed()
       const motionTime = reducedMotion ? 0 : elapsed
       const state = liveState.current
+      resizeCanvas()
       if (state.phase !== scenePhase) {
         scenePhase = state.phase
         if (scenePhase === 'morphing') morphStartedAt = elapsed
-        if (scenePhase === 'fleet') resizeCanvas(true)
+        if (scenePhase === 'fleet') resizeCanvas()
       }
       const rawMorph = state.phase === 'hero'
         ? 0
@@ -512,9 +510,7 @@ function useThreeOcean(
 
     return () => {
       cancelAnimationFrame(animationFrame)
-      window.clearTimeout(resizeTimer)
       timer.dispose()
-      resizeObserver.disconnect()
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
       scene.traverse((object) => {

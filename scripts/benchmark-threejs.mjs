@@ -10,6 +10,7 @@ const targetUrl = process.env.FLEET_BENCHMARK_URL ?? 'http://127.0.0.1:3000/'
 const trials = Number(process.env.FLEET_BENCHMARK_TRIALS ?? 5)
 const sampleMs = Number(process.env.FLEET_BENCHMARK_SAMPLE_MS ?? 5000)
 const mode = process.env.FLEET_BENCHMARK_MODE ?? 'hero'
+const agentCount = Number(process.env.FLEET_BENCHMARK_AGENTS ?? 50)
 const screenshotPath = process.env.FLEET_BENCHMARK_SCREENSHOT
 const port = 9300 + Math.floor(Math.random() * 500)
 const profilePath = mkdtempSync(resolve(tmpdir(), 'fleet-threejs-benchmark-'))
@@ -22,7 +23,7 @@ const instrumentationSource = String.raw`
     window.fetch = (input, init) => {
       if (typeof input === 'string' && input === '/api/v1/runs' && typeof init?.body === 'string') {
         const body = JSON.parse(init.body);
-        init = { ...init, body: JSON.stringify({ ...body, profile: 'development' }) };
+        init = { ...init, body: JSON.stringify({ ...body, agentCount: ${agentCount}, concurrency: Math.min(${agentCount}, 6), profile: 'development' }) };
       }
       return originalFetch(input, init);
     };
@@ -99,7 +100,7 @@ try {
   await closeChrome()
   await Promise.race([chromeExited, wait(2000)])
   writeFileSync(process.stdout.fd, JSON.stringify({
-    settings: { targetUrl, mode, trials, sampleMs, viewport: '1440x1000', deviceScaleFactor: 2 },
+    settings: { targetUrl, mode, agentCount: mode === 'fleet' ? agentCount : null, trials, sampleMs, viewport: '1440x1000', deviceScaleFactor: 2 },
     summary: summarize(results),
     assets,
     trials: results,
@@ -119,16 +120,18 @@ async function runTrial(trial) {
   await cdp.send('Page.navigate', { url: `${targetUrl}?benchmark=${mode}&trial=${trial}` })
   await cdp.waitFor('Page.loadEventFired')
   if (mode === 'fleet') {
+    await waitForExpression(cdp, "document.querySelector('.app-shell')?.dataset.hydrated === 'true'")
     await cdp.send('Runtime.evaluate', { expression: `
-      (() => {
+      (async () => {
         const input = document.querySelector('#research-question');
         const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
-        setter.call(input, 'Benchmark the 50 agent research ocean');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.form.requestSubmit();
+        setter.call(input, 'Benchmark the ${agentCount} agent research ocean');
+        input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: 'Benchmark' }));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        document.querySelector('.launch-button').click();
       })()
-    ` })
-    await waitForExpression(cdp, "document.querySelectorAll('.ocean-agent-target').length === 50")
+    `, awaitPromise: true })
+    await waitForExpression(cdp, `document.querySelectorAll('.ocean-agent-target').length === ${agentCount}`)
     await waitForExpression(cdp, "document.querySelector('.conversation')?.classList.contains('has-run')")
   }
   await wait(1500)

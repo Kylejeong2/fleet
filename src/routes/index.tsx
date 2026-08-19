@@ -139,6 +139,7 @@ function FleetHome() {
   const oceanLayerRef = useRef<HTMLDivElement>(null)
   const oceanTargetRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
+  const autoScrollRunRef = useRef<string | null>(null)
   const appendingFollowUpRef = useRef(false)
   const activeSnapshot = snapshot ?? launchSnapshot
 
@@ -212,13 +213,17 @@ function FleetHome() {
 
   useEffect(() => {
     if (!snapshot || !autoScrollRef.current) return
+    if (autoScrollRunRef.current !== snapshot.id) {
+      autoScrollRunRef.current = snapshot.id
+      return
+    }
     const messages = messagesRef.current
     if (!messages) return
     const frame = requestAnimationFrame(() => {
       messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' })
     })
     return () => cancelAnimationFrame(frame)
-  }, [snapshot?.latestSequence])
+  }, [snapshot?.id, snapshot?.latestSequence])
 
   useLayoutEffect(() => {
     const layer = oceanLayerRef.current

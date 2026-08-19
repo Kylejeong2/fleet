@@ -9,9 +9,10 @@ pnpm build
 pnpm start
 pnpm benchmark:threejs
 FLEET_BENCHMARK_MODE=fleet pnpm benchmark:threejs
+FLEET_BENCHMARK_MODE=fleet FLEET_BENCHMARK_AGENTS=1 pnpm benchmark:threejs
 ```
 
-Fleet mode submits a deterministic 50-agent development run in the browser. The benchmark-only fetch wrapper changes the profile from `live` to `development`, so it exercises the complete UI and event flow without calling external providers. It also clicks an agent target after sampling and reports whether the trace dialog opened.
+Fleet mode submits a deterministic development run in the browser, defaulting to 50 agents. Set `FLEET_BENCHMARK_AGENTS` to benchmark a smaller fleet. The benchmark-only fetch wrapper changes the profile from `live` to `development`, so it exercises the complete UI and event flow without calling external providers. It also clicks an agent target after sampling and reports whether the trace dialog opened.
 
 ## August 18, 2026 result
 
