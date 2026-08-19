@@ -4,9 +4,13 @@ import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { AgentSnapshot, RunSnapshot } from '../lib/fleet-protocol'
 
 const MAX_VISIBLE_BOATS = 50
+const FLEET_REVEAL_DELAY_SECONDS = .18
+const FLEET_LAUNCH_SECONDS = 2.8
+const FLEET_RETURN_SECONDS = 2.2
 
 const territories = [
   { x: 13, y: 27, world: new THREE.Vector3(-8.4, 0, -5.8) },
@@ -19,7 +23,7 @@ const territories = [
 
 type OceanAgent = {
   id: string | null
-  status: AgentSnapshot['status'] | 'preview'
+  status: AgentSnapshot['status']
   retrying: boolean
 }
 
@@ -27,19 +31,22 @@ type OceanState = {
   agents: OceanAgent[]
   complete: boolean
   synthesizing: boolean
+  phase: 'hero' | 'morphing' | 'fleet'
 }
 
 export function ResearchOcean({
   snapshot,
+  phase = snapshot ? 'fleet' : 'hero',
   onOpenAgent,
 }: {
   snapshot?: RunSnapshot
+  phase?: OceanState['phase']
   onOpenAgent?: (agentId: string) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const prefersReducedMotion = useReducedMotion()
   const agents = useMemo<OceanAgent[]>(() => {
-    if (!snapshot) return [{ id: null, status: 'preview', retrying: false }]
+    if (!snapshot) return []
     return Array.from({ length: Math.min(snapshot.agentCount, MAX_VISIBLE_BOATS) }, (_, index) => {
       const agent = snapshot.agents[index]
       return {
@@ -53,16 +60,22 @@ export function ResearchOcean({
     agents,
     complete: snapshot?.status === 'completed',
     synthesizing: snapshot?.status === 'synthesizing',
+    phase,
   })
   const openAgent = useRef(onOpenAgent)
-  liveState.current = {
-    agents,
-    complete: snapshot?.status === 'completed',
-    synthesizing: snapshot?.status === 'synthesizing',
-  }
-  openAgent.current = onOpenAgent
+  useEffect(() => {
+    liveState.current = {
+      agents,
+      complete: snapshot?.status === 'completed',
+      synthesizing: snapshot?.status === 'synthesizing',
+      phase,
+    }
+  }, [agents, phase, snapshot?.status])
+  useEffect(() => {
+    openAgent.current = onOpenAgent
+  }, [onOpenAgent])
 
-  useThreeOcean(canvasRef, liveState, openAgent, Boolean(prefersReducedMotion), agents.length, !snapshot)
+  useThreeOcean(canvasRef, liveState, openAgent, Boolean(prefersReducedMotion))
 
   const completed = snapshot?.agents.filter((agent) => agent.status === 'succeeded').length ?? 0
   const active = snapshot?.agents.filter((agent) => agent.status === 'running').length ?? 0
@@ -139,30 +152,29 @@ function useThreeOcean(
   liveState: MutableRefObject<OceanState>,
   onOpenAgent: MutableRefObject<((agentId: string) => void) | undefined>,
   reducedMotion: boolean,
-  boatCount: number,
-  hero: boolean,
 ) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true, powerPreference: 'high-performance' })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, hero ? 1.65 : 1.45))
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25))
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = hero ? 1.16 : 1.26
+    renderer.toneMappingExposure = 1.16
     renderer.setClearColor(0x000103, 1)
 
     const scene = new THREE.Scene()
-    scene.fog = new THREE.FogExp2(0x04121b, hero ? .026 : .034)
-    const camera = new THREE.PerspectiveCamera(hero ? 44 : 42, 1, .1, 90)
-    camera.position.set(0, hero ? 6.4 : 7.4, hero ? 14.8 : 14.2)
-    const cameraTarget = new THREE.Vector3(0, hero ? -.7 : -.9, hero ? -4.8 : -3.8)
+    scene.fog = new THREE.FogExp2(0x04121b, .026)
+    const camera = new THREE.PerspectiveCamera(44, 1, .1, 90)
+    camera.position.set(0, 6.4, 14.8)
+    const cameraTarget = new THREE.Vector3(0, -.7, -4.8)
     camera.lookAt(cameraTarget)
 
     const composer = new EffectComposer(renderer)
-    composer.addPass(new RenderPass(scene, camera))
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), hero ? .46 : .3, .62, .78)
+    const renderPass = new RenderPass(scene, camera)
+    composer.addPass(renderPass)
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), .46, .62, .78)
     composer.addPass(bloom)
 
     const sky = createSky()
@@ -173,66 +185,77 @@ function useThreeOcean(
     const moonLight = new THREE.DirectionalLight(0xc5f7ff, 3.6)
     moonLight.position.set(8, 13, -8)
     scene.add(moonLight)
-    const horizonLight = new THREE.PointLight(0x59e8dc, hero ? 50 : 38, 25, 1.7)
+    const horizonLight = new THREE.PointLight(0x59e8dc, 50, 25, 1.7)
     horizonLight.position.set(-1.5, 2.1, -7)
     scene.add(horizonLight)
 
     const softTexture = createSoftTexture()
     const moon = createMoon(softTexture)
-    moon.position.set(hero ? 8.4 : 7.2, hero ? 8.1 : 7.2, -24)
+    moon.position.set(8.4, 8.1, -24)
     scene.add(moon)
 
-    const stars = createStars(hero ? 1100 : 620)
+    const stars = createStars(1100)
     scene.add(stars)
-    const seaSparkles = createSeaSparkles(hero ? 430 : 210, softTexture)
+    const seaSparkles = createSeaSparkles(430, softTexture)
     scene.add(seaSparkles)
-    const mist = createMist(softTexture, hero)
+    const mist = createMist(softTexture, true)
     scene.add(mist)
-    const waterGeometry = new THREE.PlaneGeometry(54, 42, hero ? 176 : 128, hero ? 128 : 92)
-    const waterMaterial = createWaterMaterial(hero)
-    const water = new THREE.Mesh(waterGeometry, waterMaterial)
+    const heroWaterGeometry = new THREE.PlaneGeometry(54, 42, 128, 96)
+    const fleetWaterGeometry = new THREE.PlaneGeometry(54, 42, 96, 72)
+    const waterMaterial = createWaterMaterial(true)
+    const water = new THREE.Mesh(heroWaterGeometry, waterMaterial)
     water.rotation.x = -Math.PI / 2
     water.position.set(0, -1.15, -4.8)
     scene.add(water)
 
-    const dock = hero ? null : createHarborDock()
-    if (dock) scene.add(dock)
+    const dock = createHarborDock()
+    scene.add(dock)
+    const dockMaterials: THREE.Material[] = []
+    dock.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return
+      const materials = Array.isArray(object.material) ? object.material : [object.material]
+      for (const material of materials) {
+        material.transparent = true
+        dockMaterials.push(material)
+      }
+    })
 
     const destinationPins: THREE.Group[] = []
-    if (!hero) {
-      const visibleDestinations = Math.min(boatCount, territories.length)
-      for (let index = 0; index < visibleDestinations; index += 1) {
-        const territory = territories[index]!
-        const outward = territory.world.clone().setY(0).normalize()
-        const lateral = new THREE.Vector3(-outward.z, 0, outward.x)
-          .multiplyScalar(index % 2 === 0 ? 1.45 : -1.45)
-        const pin = createDestinationPin()
-        pin.position.copy(territory.world)
-          .add(outward.multiplyScalar(.82))
-          .add(lateral)
-        pin.position.y = -.43
-        pin.userData.agentIndex = index
-        pin.userData.baseY = pin.position.y
-        destinationPins.push(pin)
-        scene.add(pin)
-      }
+    for (let index = 0; index < territories.length; index += 1) {
+      const territory = territories[index]!
+      const outward = territory.world.clone().setY(0).normalize()
+      const lateral = new THREE.Vector3(-outward.z, 0, outward.x)
+        .multiplyScalar(index % 2 === 0 ? 1.45 : -1.45)
+      const pin = createDestinationPin()
+      pin.position.copy(territory.world)
+        .add(outward.multiplyScalar(.82))
+        .add(lateral)
+      pin.position.y = -.43
+      pin.userData.agentIndex = index
+      pin.userData.baseY = pin.position.y
+      pin.visible = false
+      destinationPins.push(pin)
+      scene.add(pin)
     }
 
-    const boats: THREE.Group[] = []
+    const previewBoat = createBoat(.65)
+    const heroBoatPosition = new THREE.Vector3(4.75, -.79, 3.05)
+    const harborBoatPosition = new THREE.Vector3(0, -.52, 5.6)
+    previewBoat.rotation.y = -.9
+    scene.add(previewBoat)
+    const boats: THREE.Object3D[] = []
     const routes: THREE.Line[] = []
-    for (let index = 0; index < boatCount; index += 1) {
-      const preview = hero && liveState.current.agents[0]?.status === 'preview'
-      const boat = createBoat(preview ? .65 : .34)
+    const scratchColor = new THREE.Color()
+    const scratchTangent = new THREE.Vector3()
+    const fleetBoats = createFleetBoatInstances(MAX_VISIBLE_BOATS)
+    fleetBoats.count = 0
+    scene.add(fleetBoats)
+    for (let index = 0; index < MAX_VISIBLE_BOATS; index += 1) {
+      const boat = new THREE.Object3D()
+      boat.scale.setScalar(0)
       boat.userData.agentIndex = index
-      boat.userData.progress = preview ? .5 : 0
+      boat.userData.progress = 0
       boats.push(boat)
-      scene.add(boat)
-
-      if (preview) {
-        boat.userData.anchor = new THREE.Vector3(4.75, -.79, 3.05)
-        boat.rotation.y = -.9
-        continue
-      }
 
       const territory = territories[index % territories.length]!
       const spread = ((Math.floor(index / territories.length) % 7) - 3) * .38
@@ -241,13 +264,17 @@ function useThreeOcean(
       const control = new THREE.Vector3(destination.x * .42 + ((index % 5) - 2) * .32, .55 + (index % 3) * .12, destination.z * .28 + 1.2)
       const curve = new THREE.QuadraticBezierCurve3(start, control, destination)
       boat.userData.curve = curve
+      boat.updateMatrix()
+      fleetBoats.setMatrixAt(index, boat.matrix)
       const routeGeometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(44))
       const routeMaterial = new THREE.LineBasicMaterial({ color: 0x4beadd, transparent: true, opacity: .06, blending: THREE.AdditiveBlending })
       const route = new THREE.Line(routeGeometry, routeMaterial)
       route.userData.agentIndex = index
+      route.visible = false
       routes.push(route)
       scene.add(route)
     }
+    fleetBoats.instanceMatrix.needsUpdate = true
 
     const pointer = new THREE.Vector2()
     const targetPointer = new THREE.Vector2()
@@ -260,6 +287,11 @@ function useThreeOcean(
     }
     const intersectAgent = () => {
       raycaster.setFromCamera(pointer, camera)
+      if (fleetBoats) {
+        fleetBoats.computeBoundingSphere()
+        const hit = raycaster.intersectObject(fleetBoats, false)[0]
+        return hit?.instanceId ?? null
+      }
       const hits = raycaster.intersectObjects(boats, true)
       for (const hit of hits) {
         let current: THREE.Object3D | null = hit.object
@@ -282,15 +314,18 @@ function useThreeOcean(
     canvas.addEventListener('pointermove', onPointerMove)
     canvas.addEventListener('pointerup', onPointerUp)
 
-    const resize = () => {
+    let renderWidth = 0
+    let renderHeight = 0
+    const resizeCanvas = (force = false) => {
       const rect = canvas.getBoundingClientRect()
-      const width = Math.max(1, rect.width)
-      const height = Math.max(1, rect.height)
-      const previewBoat = hero && liveState.current.agents[0]?.status === 'preview' ? boats[0] : undefined
-      if (previewBoat) {
+      const width = Math.max(1, Math.round(rect.width))
+      const height = Math.max(1, Math.round(rect.height))
+      if (!force && width === renderWidth && height === renderHeight) return
+      renderWidth = width
+      renderHeight = height
+      if (liveState.current.phase === 'hero') {
         const narrow = width < 620
-        previewBoat.scale.setScalar(narrow ? .55 : .65)
-        ;(previewBoat.userData.anchor as THREE.Vector3).set(narrow ? 1.25 : 4.75, narrow ? -.84 : -.79, narrow ? 4.75 : 3.05)
+        heroBoatPosition.set(narrow ? 1.25 : 4.75, narrow ? -.84 : -.79, narrow ? 4.75 : 3.05)
         previewBoat.rotation.y = narrow ? -.68 : -.9
       }
       renderer.setSize(width, height, false)
@@ -298,89 +333,199 @@ function useThreeOcean(
       camera.aspect = width / height
       camera.updateProjectionMatrix()
     }
-    const resizeObserver = new ResizeObserver(resize)
-    resizeObserver.observe(canvas)
-    resize()
+    resizeCanvas(true)
 
     const timer = new THREE.Timer()
     timer.connect(document)
     let animationFrame = 0
+    let scenePhase = liveState.current.phase
+    let morphStartedAt = 0
+    let usingFleetWater = false
+    let renderedAgentCount = 0
     const render = (timestamp?: number) => {
       timer.update(timestamp)
       const elapsed = timer.getElapsed()
       const motionTime = reducedMotion ? 0 : elapsed
       const state = liveState.current
+      resizeCanvas()
+      if (state.phase !== scenePhase) {
+        scenePhase = state.phase
+        if (scenePhase === 'morphing') morphStartedAt = elapsed
+        if (scenePhase === 'fleet') resizeCanvas()
+      }
+      const rawMorph = state.phase === 'hero'
+        ? 0
+        : state.phase === 'fleet'
+          ? 1
+          : THREE.MathUtils.clamp((elapsed - morphStartedAt) / 1.8, 0, 1)
+      const morph = reducedMotion ? (state.phase === 'hero' ? 0 : 1) : smootherStep(rawMorph)
+      const heroRetire = smootherStep(THREE.MathUtils.clamp((morph - .32) / .24, 0, 1))
+      const harborReveal = smootherStep(THREE.MathUtils.clamp((morph - .48) / .2, 0, 1))
+      const fleetReveal = smootherStep(THREE.MathUtils.clamp((morph - .68) / .32, 0, 1))
+      if (morph > .72 && !usingFleetWater) {
+        water.geometry = fleetWaterGeometry
+        usingFleetWater = true
+      } else if (morph <= .72 && usingFleetWater) {
+        water.geometry = heroWaterGeometry
+        usingFleetWater = false
+      }
       waterMaterial.uniforms.uTime!.value = motionTime
       waterMaterial.uniforms.uEnergy!.value = state.synthesizing ? 1.35 : state.complete ? .8 : .48
+      waterMaterial.uniforms.uHero!.value = 1 - morph
       ;(sky.material as THREE.ShaderMaterial).uniforms.uTime!.value = motionTime
+      ;(scene.fog as THREE.FogExp2).density = THREE.MathUtils.lerp(.026, .034, morph)
+      renderer.toneMappingExposure = THREE.MathUtils.lerp(1.16, 1.26, morph)
+      const cameraFov = THREE.MathUtils.lerp(44, 42, morph)
+      if (camera.fov !== cameraFov) {
+        camera.fov = cameraFov
+        camera.updateProjectionMatrix()
+      }
       stars.rotation.y = reducedMotion ? 0 : elapsed * .004
       seaSparkles.rotation.y = reducedMotion ? 0 : Math.sin(elapsed * .03) * .08
       seaSparkles.position.y = reducedMotion ? 0 : Math.sin(elapsed * .21) * .035
       mist.children.forEach((cloud, index) => {
+        cloud.visible = morph < .8 || index < 9
         if (reducedMotion) return
         cloud.position.x += (index % 2 ? 1 : -1) * .0007
         cloud.position.y += Math.sin(elapsed * .16 + index) * .00025
       })
-      horizonLight.intensity = (hero ? 46 : 34) + Math.sin(elapsed * .7) * 4 + (state.synthesizing ? 18 : 0)
-      bloom.strength = (hero ? .42 : .27) + (state.synthesizing ? .14 : 0)
+      horizonLight.intensity = THREE.MathUtils.lerp(46, 34, morph) + Math.sin(elapsed * .7) * 4 + (state.synthesizing ? 18 : 0)
+      bloom.strength = THREE.MathUtils.lerp(.42, .27, morph) + (state.synthesizing ? .14 : 0)
 
-      boats.forEach((boat, index) => {
+      previewBoat.position.copy(heroBoatPosition).lerp(harborBoatPosition, morph)
+      previewBoat.position.x += reducedMotion ? 0 : Math.sin(elapsed * .11) * .1 * (1 - morph)
+      previewBoat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.35) * .05
+      previewBoat.rotation.y = THREE.MathUtils.lerp(-.9, 0, morph)
+      previewBoat.rotation.z = reducedMotion ? 0 : Math.sin(elapsed * 1.05) * .025
+      previewBoat.scale.setScalar(.65 * (1 - heroRetire))
+      previewBoat.visible = heroRetire < 1
+      dockMaterials.forEach((material) => { material.opacity = harborReveal })
+      dock.visible = harborReveal > .01
+
+      const agentCount = Math.min(state.agents.length, MAX_VISIBLE_BOATS)
+      if (agentCount < renderedAgentCount) {
+        for (let index = agentCount; index < renderedAgentCount; index += 1) {
+          routes[index]!.visible = false
+          if (index < destinationPins.length) destinationPins[index]!.visible = false
+        }
+      }
+      if (fleetBoats.count !== agentCount) fleetBoats.count = agentCount
+      for (let index = 0; index < agentCount; index += 1) {
+        const boat = boats[index]!
         const agent = state.agents[index]
-        if (!agent) return
-        const preview = agent.status === 'preview'
-        if (preview) {
-          boat.position.copy(boat.userData.anchor as THREE.Vector3)
-          boat.position.x += reducedMotion ? 0 : Math.sin(elapsed * .11) * .1
-          boat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.35) * .05
-          boat.rotation.z = reducedMotion ? 0 : Math.sin(elapsed * 1.05) * .025
-          boat.visible = true
-          return
+        const route = routes[index]!
+        if (!agent) {
+          boat.scale.setScalar(0)
+          boat.updateMatrix()
+          fleetBoats.setMatrixAt(index, boat.matrix)
+          route.visible = false
+          continue
         }
 
-        const targetProgress = agent.status === 'planned'
-          ? .025
-          : agent.status === 'succeeded'
-            ? .1 + (index % 8) * .012
-            : agent.status === 'failed'
-              ? .78
-              : .93
-        boat.userData.progress = THREE.MathUtils.lerp(boat.userData.progress as number, targetProgress, reducedMotion ? 1 : .025 + (index % 5) * .002)
+        const dockProgress = .018 + (index % 3) * .004
+        const outboundProgress = .84 + (index % 5) * .012
+        const returnedProgress = .1 + (index % 8) * .012
+        let progress: number
+        let routeReveal = 0
+        if (reducedMotion) {
+          progress = agent.status === 'planned'
+            ? dockProgress
+            : agent.status === 'succeeded'
+              ? returnedProgress
+              : agent.status === 'failed'
+                ? .78
+                : outboundProgress
+          routeReveal = 1
+        } else if (agent.status === 'planned') {
+          boat.userData.launchAt = undefined
+          boat.userData.returnAt = undefined
+          progress = THREE.MathUtils.lerp(boat.userData.progress as number, dockProgress, .08)
+        } else {
+          if (typeof boat.userData.launchAt !== 'number') {
+            const stagger = (index % 10) * .08 + Math.floor(index / 10) * .035
+            boat.userData.launchAt = elapsed + FLEET_REVEAL_DELAY_SECONDS + stagger
+          }
+          const launchTime = THREE.MathUtils.clamp(
+            (elapsed - (boat.userData.launchAt as number)) / FLEET_LAUNCH_SECONDS,
+            0,
+            1,
+          )
+          routeReveal = smootherStep(launchTime)
+          progress = THREE.MathUtils.lerp(dockProgress, outboundProgress, routeReveal)
+          if (launchTime >= 1 && agent.status === 'succeeded') {
+            if (typeof boat.userData.returnAt !== 'number') boat.userData.returnAt = elapsed
+            const returnTime = THREE.MathUtils.clamp(
+              (elapsed - (boat.userData.returnAt as number)) / FLEET_RETURN_SECONDS,
+              0,
+              1,
+            )
+            progress = THREE.MathUtils.lerp(outboundProgress, returnedProgress, smootherStep(returnTime))
+          } else if (launchTime >= 1 && agent.status === 'failed') {
+            progress = THREE.MathUtils.lerp(outboundProgress, .78, .35)
+          }
+        }
+        boat.userData.progress = progress
         const curve = boat.userData.curve as THREE.QuadraticBezierCurve3
-        const progress = boat.userData.progress as number
-        const point = curve.getPoint(progress)
-        const tangent = curve.getTangent(progress)
-        boat.position.copy(point)
+        curve.getPoint(progress, boat.position)
+        scratchTangent.set(
+          (1 - progress) * (curve.v1.x - curve.v0.x) + progress * (curve.v2.x - curve.v1.x),
+          (1 - progress) * (curve.v1.y - curve.v0.y) + progress * (curve.v2.y - curve.v1.y),
+          (1 - progress) * (curve.v1.z - curve.v0.z) + progress * (curve.v2.z - curve.v1.z),
+        ).normalize()
         boat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.75 + index * .61) * .045
-        boat.rotation.y = THREE.MathUtils.clamp(Math.atan2(tangent.x, tangent.z), -.9, .9)
+        boat.rotation.y = THREE.MathUtils.clamp(Math.atan2(scratchTangent.x, scratchTangent.z), -.9, .9)
         boat.rotation.z = reducedMotion ? 0 : Math.sin(elapsed * 1.3 + index) * .035
         const failed = agent.status === 'failed' || agent.retrying
-        setBoatColor(boat, failed ? 0xff4f5e : agent.status === 'succeeded' ? 0xffd76a : 0x72fff2)
+        const returned = agent.status === 'succeeded'
+          && (reducedMotion || typeof boat.userData.returnAt === 'number')
         boat.visible = agent.status !== 'planned' || index < 12
+        const color = failed ? 0xff4f5e : returned ? 0xffd76a : 0x72fff2
+        if (boat.userData.color !== color) {
+          fleetBoats.setColorAt(index, scratchColor.setHex(color))
+          boat.userData.color = color
+          if (fleetBoats.instanceColor) fleetBoats.instanceColor.needsUpdate = true
+        }
+        boat.scale.setScalar(boat.visible ? .34 * fleetReveal : 0)
+        boat.updateMatrix()
+        fleetBoats.setMatrixAt(index, boat.matrix)
 
-        const route = routes[index]
-        if (!route) return
+        route.visible = fleetReveal > .01
         const routeMaterial = route.material as THREE.LineBasicMaterial
-        routeMaterial.color.setHex(failed ? 0xff334c : agent.status === 'succeeded' ? 0xffd76a : 0x4beadd)
-        routeMaterial.opacity = agent.status === 'planned' ? .035 : agent.status === 'running' ? .48 : .24
-      })
+        routeMaterial.color.setHex(failed ? 0xff334c : returned ? 0xffd76a : 0x4beadd)
+        const routeOpacity = agent.status === 'planned' ? .035 : agent.status === 'running' ? .48 : .24
+        routeMaterial.opacity = routeOpacity * (.06 + routeReveal * .94) * fleetReveal
+      }
+      renderedAgentCount = agentCount
 
-      destinationPins.forEach((pin, index) => {
+      const pinCount = Math.min(agentCount, destinationPins.length)
+      for (let index = 0; index < pinCount; index += 1) {
+        const pin = destinationPins[index]!
         const agent = state.agents[index]
+        pin.visible = Boolean(agent) && fleetReveal > .01
+        if (!agent) continue
         const failed = agent?.status === 'failed' || agent?.retrying
         const color = failed ? 0xff4f5e : agent?.status === 'succeeded' ? 0xffd76a : 0x72fff2
         const pulse = reducedMotion ? 1 : 1 + Math.sin(elapsed * 1.65 + index * .8) * .055
         pin.scale.setScalar(pulse)
         pin.position.y = (pin.userData.baseY as number) + (reducedMotion ? 0 : Math.sin(elapsed * 1.2 + index) * .045)
-        setDestinationPinColor(pin, color)
-      })
+        if (pin.userData.color !== color) {
+          setDestinationPinColor(pin, color)
+          pin.userData.color = color
+        }
+      }
 
-      if (dock && !reducedMotion) {
+      if (agentCount > 0) fleetBoats.instanceMatrix.needsUpdate = true
+
+      if (!reducedMotion) {
         dock.position.y = Math.sin(elapsed * .72) * .012
       }
 
       if (!reducedMotion) {
-        camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetPointer.x * (hero ? .62 : .7), .018)
-        camera.position.y = THREE.MathUtils.lerp(camera.position.y, (hero ? 6.4 : 7.4) + targetPointer.y * .26, .018)
+        camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetPointer.x * THREE.MathUtils.lerp(.62, .7, morph), .018)
+        camera.position.y = THREE.MathUtils.lerp(camera.position.y, THREE.MathUtils.lerp(6.4, 7.4, morph) + targetPointer.y * .26, .018)
+        camera.position.z = THREE.MathUtils.lerp(14.8, 14.2, morph)
+        cameraTarget.y = THREE.MathUtils.lerp(-.7, -.9, morph)
+        cameraTarget.z = THREE.MathUtils.lerp(-4.8, -3.8, morph)
         camera.lookAt(cameraTarget)
       }
       composer.render()
@@ -391,7 +536,6 @@ function useThreeOcean(
     return () => {
       cancelAnimationFrame(animationFrame)
       timer.dispose()
-      resizeObserver.disconnect()
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
       scene.traverse((object) => {
@@ -403,11 +547,20 @@ function useThreeOcean(
           object.material.dispose()
         }
       })
+      heroWaterGeometry.dispose()
+      fleetWaterGeometry.dispose()
+      waterMaterial.dispose()
       softTexture.dispose()
+      renderPass.dispose()
+      bloom.dispose()
       composer.dispose()
       renderer.dispose()
     }
-  }, [boatCount, canvasRef, hero, liveState, onOpenAgent, reducedMotion])
+  }, [canvasRef, liveState, onOpenAgent, reducedMotion])
+}
+
+function smootherStep(value: number): number {
+  return value * value * value * (value * (value * 6 - 15) + 10)
 }
 
 function createSky(): THREE.Mesh {
@@ -434,14 +587,15 @@ function createSky(): THREE.Mesh {
         }
         void main() {
           float height = clamp(vDirection.y * .5 + .5, 0.0, 1.0);
-          float horizon = exp(-pow((height - .46) * 7.0, 2.0));
+          float horizonDelta = (height - .46) * 7.0;
+          float horizon = exp(-(horizonDelta * horizonDelta));
           vec3 zenith = vec3(.0002, .0005, .0015);
           vec3 middle = vec3(.001, .004, .009);
           vec3 horizonColor = vec3(.004, .013, .021);
           vec3 color = mix(zenith, middle, smoothstep(.28, .68, 1.0 - height));
           color = mix(color, horizonColor, horizon * .5);
           float auroraNoise = noise(vDirection.xz * 3.5 + vec2(uTime * .018, 0.0));
-          float aurora = smoothstep(.55, .9, auroraNoise) * smoothstep(.42, .7, height) * smoothstep(.94, .64, height);
+          float aurora = smoothstep(.55, .9, auroraNoise) * smoothstep(.42, .7, height) * (1.0 - smoothstep(.64, .94, height));
           color += vec3(.01, .08, .085) * aurora * .08;
           gl_FragColor = vec4(color, 1.0);
         }
@@ -519,7 +673,8 @@ function createWaterMaterial(hero: boolean): THREE.ShaderMaterial {
         float depth = smoothstep(-.36, .38, vHeight);
         float foamNoise = noise(vWorldPosition.xz * 1.8 + vec2(uTime * .11, -uTime * .07));
         float foam = smoothstep(.42, .67, vHeight + vSlope * .28 + foamNoise * .14);
-        float moonPath = pow(max(0.0, 1.0 - abs(vWorldPosition.x - 5.5) / (2.4 + vUv.y * 5.0)), 2.0) * smoothstep(.2, 1.0, vUv.y);
+        float moonPathBase = max(0.0, 1.0 - abs(vWorldPosition.x - 5.5) / (2.4 + vUv.y * 5.0));
+        float moonPath = moonPathBase * moonPathBase * smoothstep(.2, 1.0, vUv.y);
         float glint = pow(max(0.0, sin(vWorldPosition.x * 7.2 - vWorldPosition.z * 5.4 + uTime * .45)), 18.0) * moonPath;
         vec3 abyss = vec3(.002, .018, .036);
         vec3 deep = vec3(.004, .075, .105);
@@ -691,8 +846,8 @@ function createBoat(scale: number): THREE.Group {
   return boat
 }
 
-function createHullGeometry(): THREE.BufferGeometry {
-  const geometry = new THREE.SphereGeometry(.72, 28, 14, 0, Math.PI * 2, 0, Math.PI * .57)
+function createHullGeometry(widthSegments = 28, heightSegments = 14): THREE.BufferGeometry {
+  const geometry = new THREE.SphereGeometry(.72, widthSegments, heightSegments, 0, Math.PI * 2, 0, Math.PI * .57)
   geometry.scale(.72, .48, 1.72)
   geometry.rotateZ(Math.PI)
   return geometry
@@ -716,6 +871,18 @@ function createBillowedSail(
   depth: number,
   material: THREE.Material,
 ): THREE.Mesh {
+  const sail = new THREE.Mesh(createBillowedSailGeometry(side, width, height, bottom, depth), material)
+  sail.userData.boatSurface = true
+  return sail
+}
+
+function createBillowedSailGeometry(
+  side: -1 | 1,
+  width: number,
+  height: number,
+  bottom: number,
+  depth: number,
+): THREE.BufferGeometry {
   const segments = 7
   const positions: number[] = []
   const indices: number[] = []
@@ -747,9 +914,40 @@ function createBillowedSail(
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
   geometry.setIndex(indices)
   geometry.computeVertexNormals()
-  const sail = new THREE.Mesh(geometry, material)
-  sail.userData.boatSurface = true
-  return sail
+  return geometry
+}
+
+function createFleetBoatInstances(count: number): THREE.InstancedMesh {
+  const geometries = [
+    createHullGeometry(16, 8).translate(0, .02, 0),
+    createDeckGeometry().translate(0, .14, 0),
+    new THREE.BoxGeometry(.38, .17, .38).translate(0, .24, -.45),
+    new THREE.CylinderGeometry(.025, .035, 1.82, 6).translate(0, 1.04, .08),
+    new THREE.CylinderGeometry(.018, .022, .92, 6).rotateZ(Math.PI / 2).translate(.4, .72, .08),
+    createBillowedSailGeometry(1, 1.03, 1.38, .36, .085),
+    createBillowedSailGeometry(-1, .78, 1.16, .43, .045),
+    new THREE.SphereGeometry(.052, 8, 6).translate(.22, .39, -.42),
+  ]
+  for (const geometry of geometries) {
+    for (const attribute of Object.keys(geometry.attributes)) {
+      if (attribute !== 'position' && attribute !== 'normal') geometry.deleteAttribute(attribute)
+    }
+  }
+  const geometry = mergeGeometries(geometries, false)
+  geometries.forEach((source) => source.dispose())
+  if (!geometry) throw new Error('Could not merge fleet boat geometry')
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0x082a30,
+    emissiveIntensity: .38,
+    metalness: .06,
+    roughness: .5,
+    side: THREE.DoubleSide,
+  })
+  const instances = new THREE.InstancedMesh(geometry, material, count)
+  instances.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+  instances.frustumCulled = false
+  return instances
 }
 
 function createRiggingLine(points: Array<[number, number, number]>, material: THREE.LineBasicMaterial): THREE.Line {
@@ -821,43 +1019,61 @@ function createHarborDock(): THREE.Group {
   const dock = new THREE.Group()
   dock.position.set(-1.08, 0, 0)
   const woodColors = [0x6f4629, 0x805334, 0x5d3924]
-  const woodMaterials = woodColors.map((color) => new THREE.MeshStandardMaterial({
-    color,
-    roughness: .86,
-    metalness: .02,
-  }))
+  const plankMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .86, metalness: .02 })
   const darkWood = new THREE.MeshStandardMaterial({ color: 0x3a2418, roughness: .94 })
   const brass = new THREE.MeshStandardMaterial({ color: 0xa97739, emissive: 0x4b2a0d, emissiveIntensity: .3, metalness: .48, roughness: .38 })
   const lanternMaterial = new THREE.MeshBasicMaterial({ color: 0xffd68a })
+  const transform = new THREE.Object3D()
+  const plankColor = new THREE.Color()
 
+  const planks = new THREE.InstancedMesh(new THREE.BoxGeometry(1.35, .13, .34), plankMaterial, 9)
   for (let index = 0; index < 9; index += 1) {
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(1.35, .13, .34), woodMaterials[index % woodMaterials.length])
-    plank.position.set(0, -.39 + (index % 3) * .006, 5.65 + index * .37)
-    plank.rotation.y = (index % 2 ? 1 : -1) * .008
-    dock.add(plank)
+    transform.position.set(0, -.39 + (index % 3) * .006, 5.65 + index * .37)
+    transform.rotation.set(0, (index % 2 ? 1 : -1) * .008, 0)
+    transform.updateMatrix()
+    planks.setMatrixAt(index, transform.matrix)
+    planks.setColorAt(index, plankColor.setHex(woodColors[index % woodColors.length]!))
   }
+  planks.instanceMatrix.needsUpdate = true
+  planks.instanceColor!.needsUpdate = true
+  dock.add(planks)
 
-  const underRailLeft = new THREE.Mesh(new THREE.BoxGeometry(.14, .15, 3.45), darkWood)
-  underRailLeft.position.set(-.5, -.5, 7.13)
-  const underRailRight = underRailLeft.clone()
-  underRailRight.position.x = .5
-  dock.add(underRailLeft, underRailRight)
+  const underRails = new THREE.InstancedMesh(new THREE.BoxGeometry(.14, .15, 3.45), darkWood, 2)
+  for (const [index, x] of [-.5, .5].entries()) {
+    transform.position.set(x, -.5, 7.13)
+    transform.rotation.set(0, 0, 0)
+    transform.updateMatrix()
+    underRails.setMatrixAt(index, transform.matrix)
+  }
+  underRails.instanceMatrix.needsUpdate = true
+  dock.add(underRails)
 
+  const posts = new THREE.InstancedMesh(new THREE.CylinderGeometry(.075, .095, 1.15, 10), darkWood, 6)
+  let postIndex = 0
   for (const z of [5.62, 7.02, 8.58]) {
     for (const x of [-.78, .78]) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(.075, .095, 1.15, 10), darkWood)
-      post.position.set(x, -.33, z)
-      dock.add(post)
+      transform.position.set(x, -.33, z)
+      transform.updateMatrix()
+      posts.setMatrixAt(postIndex, transform.matrix)
+      postIndex += 1
     }
   }
+  posts.instanceMatrix.needsUpdate = true
+  dock.add(posts)
 
-  for (const x of [-.58, .58]) {
-    const lanternPost = new THREE.Mesh(new THREE.CylinderGeometry(.025, .035, .66, 10), brass)
-    lanternPost.position.set(x, -.03, 5.74)
-    const lantern = new THREE.Mesh(new THREE.SphereGeometry(.075, 12, 8), lanternMaterial)
-    lantern.position.set(x, .31, 5.74)
-    dock.add(lanternPost, lantern)
+  const lanternPosts = new THREE.InstancedMesh(new THREE.CylinderGeometry(.025, .035, .66, 10), brass, 2)
+  const lanterns = new THREE.InstancedMesh(new THREE.SphereGeometry(.075, 12, 8), lanternMaterial, 2)
+  for (const [index, x] of [-.58, .58].entries()) {
+    transform.position.set(x, -.03, 5.74)
+    transform.updateMatrix()
+    lanternPosts.setMatrixAt(index, transform.matrix)
+    transform.position.set(x, .31, 5.74)
+    transform.updateMatrix()
+    lanterns.setMatrixAt(index, transform.matrix)
   }
+  lanternPosts.instanceMatrix.needsUpdate = true
+  lanterns.instanceMatrix.needsUpdate = true
+  dock.add(lanternPosts, lanterns)
   const harborLight = new THREE.PointLight(0xffbd69, 8, 4.2, 2)
   harborLight.position.set(0, .35, 5.7)
   dock.add(harborLight)

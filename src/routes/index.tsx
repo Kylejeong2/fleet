@@ -22,11 +22,14 @@ import {
   useEffect,
   useId,
   lazy,
+  useLayoutEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   Suspense,
   type FormEvent,
+  type SetStateAction,
 } from 'react'
 import {
   FleetEventSchema,
@@ -91,6 +94,18 @@ const agentNames = [
 
 const agentCountOptions = [1, 3, 6, 12, 25, 50, 100] as const
 type Theme = 'light' | 'dark'
+type RunViewState = { snapshot: RunSnapshot | null; launchSnapshot: RunSnapshot | null }
+type RunViewAction =
+  | { type: 'set-snapshot'; value: SetStateAction<RunSnapshot | null> }
+  | { type: 'set-launch'; value: RunSnapshot | null }
+
+function reduceRunView(state: RunViewState, action: RunViewAction): RunViewState {
+  if (action.type === 'set-launch') return { ...state, launchSnapshot: action.value }
+  const snapshot = typeof action.value === 'function'
+    ? action.value(state.snapshot)
+    : action.value
+  return { ...state, snapshot }
+}
 
 const botPalettes = [
   { shell: '#c9dcf5', shellLight: '#f4f8ff', accent: '#5579b3', accentSoft: '#d9e6f7', eye: '#25446f' },
@@ -105,7 +120,10 @@ function FleetHome() {
   const [hydrated, setHydrated] = useState(false)
   const [question, setQuestion] = useState('')
   const [agentCount, setAgentCount] = useState(50)
-  const [snapshot, setSnapshot] = useState<RunSnapshot | null>(null)
+  const [{ snapshot, launchSnapshot }, dispatchRunView] = useReducer(reduceRunView, {
+    snapshot: null,
+    launchSnapshot: null,
+  })
   const [conversationHistory, setConversationHistory] = useState<RunSnapshot[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [dialogRunId, setDialogRunId] = useState<string | null>(null)
@@ -117,8 +135,21 @@ function FleetHome() {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
+  const conversationRef = useRef<HTMLElement>(null)
+  const oceanLayerRef = useRef<HTMLDivElement>(null)
+  const oceanTargetRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
+  const autoScrollRunRef = useRef<string | null>(null)
   const appendingFollowUpRef = useRef(false)
+  const activeSnapshot = snapshot ?? launchSnapshot
+
+  function setSnapshot(value: SetStateAction<RunSnapshot | null>) {
+    dispatchRunView({ type: 'set-snapshot', value })
+  }
+
+  function setLaunchSnapshot(value: RunSnapshot | null) {
+    dispatchRunView({ type: 'set-launch', value })
+  }
 
   useEffect(() => {
     setHydrated(true)
@@ -182,13 +213,43 @@ function FleetHome() {
 
   useEffect(() => {
     if (!snapshot || !autoScrollRef.current) return
+    if (autoScrollRunRef.current !== snapshot.id) {
+      autoScrollRunRef.current = snapshot.id
+      return
+    }
     const messages = messagesRef.current
     if (!messages) return
     const frame = requestAnimationFrame(() => {
       messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' })
     })
     return () => cancelAnimationFrame(frame)
-  }, [snapshot?.latestSequence])
+  }, [snapshot?.id, snapshot?.latestSequence])
+
+  useLayoutEffect(() => {
+    const layer = oceanLayerRef.current
+    const target = oceanTargetRef.current
+    const conversation = conversationRef.current
+    if (!activeSnapshot || !layer || !target || !conversation) return
+    const syncOceanTarget = () => {
+      const targetRect = target.getBoundingClientRect()
+      const conversationRect = conversation.getBoundingClientRect()
+      layer.style.setProperty('--ocean-target-x', `${targetRect.left - conversationRect.left}px`)
+      layer.style.setProperty('--ocean-target-y', `${targetRect.top - conversationRect.top}px`)
+      layer.style.setProperty('--ocean-target-width', `${targetRect.width}px`)
+      layer.style.setProperty('--ocean-target-height', `${targetRect.height}px`)
+    }
+    syncOceanTarget()
+    const observer = new ResizeObserver(syncOceanTarget)
+    observer.observe(target)
+    observer.observe(conversation)
+    conversation.addEventListener('scroll', syncOceanTarget, true)
+    window.addEventListener('resize', syncOceanTarget)
+    return () => {
+      observer.disconnect()
+      conversation.removeEventListener('scroll', syncOceanTarget, true)
+      window.removeEventListener('resize', syncOceanTarget)
+    }
+  }, [activeSnapshot?.id])
 
   useEffect(() => {
     if (!fleetOpen) return
@@ -290,8 +351,12 @@ function FleetHome() {
         appendingFollowUpRef.current = true
         setConversationHistory((current) => [...current, currentSnapshot])
       }
-      setSnapshot(nextSnapshot)
-      setQuestion('')
+      if (isFollowUp) {
+        setSnapshot(nextSnapshot)
+        setQuestion('')
+      } else {
+        await transitionToRun(nextSnapshot)
+      }
     } catch (startError) {
       setError(errorMessage(startError))
     } finally {
@@ -302,6 +367,19 @@ function FleetHome() {
   function closeFleet() {
     setFleetOpen(false)
     requestAnimationFrame(() => fleetButtonRef.current?.focus())
+  }
+
+  async function transitionToRun(nextSnapshot: RunSnapshot) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setSnapshot(nextSnapshot)
+      setQuestion('')
+      return
+    }
+    setLaunchSnapshot(nextSnapshot)
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 1900))
+    setSnapshot(nextSnapshot)
+    setLaunchSnapshot(null)
+    setQuestion('')
   }
 
   function openAgentTrace(agentId: string, turn: RunSnapshot | null = snapshot) {
@@ -323,22 +401,24 @@ function FleetHome() {
   return (
     <LazyMotion features={domAnimation} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
-      <section className={`conversation ${snapshot ? 'has-run' : 'ocean-home'}`} aria-label="Fleet chat">
+      <section ref={conversationRef} className={`conversation ${snapshot ? 'has-run' : launchSnapshot ? 'launching' : 'ocean-home'}`} aria-label="Fleet chat">
         <header className="conversation-header">
           <FleetBoatMark />
           <span className="conversation-title">Fleet</span>
-          {snapshot ? (
+          {activeSnapshot ? (
             <span className="run-meta">
-              {snapshot.agentCount} {snapshot.agentCount === 1 ? 'agent' : 'agents'}
+              {activeSnapshot.agentCount} {activeSnapshot.agentCount === 1 ? 'agent' : 'agents'}
             </span>
           ) : null}
           <div className="header-actions">
-            {snapshot ? (
+            {activeSnapshot ? (
               <button
                 className="view-fleet-button"
                 type="button"
+                disabled={!snapshot}
                 ref={fleetButtonRef}
                 onClick={() => {
+                  if (!snapshot) return
                   setDialogRunId(snapshot.id)
                   setSelectedAgentId(null)
                   setFleetOpen(true)
@@ -362,19 +442,35 @@ function FleetHome() {
           </div>
         </header>
 
-        {snapshot ? (
-          <div className="conversation-stage">
+        <div
+          ref={oceanLayerRef}
+          className={`ocean-morph-layer ${launchSnapshot ? 'launching' : snapshot ? 'compact' : 'hero'}`}
+        >
+          <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
+            <ResearchOcean
+              snapshot={activeSnapshot ?? undefined}
+              phase={launchSnapshot ? 'morphing' : snapshot ? 'fleet' : 'hero'}
+              onOpenAgent={snapshot ? (agentId) => openAgentTrace(agentId) : undefined}
+            />
+          </Suspense>
+        </div>
+
+        {activeSnapshot ? (
+          <div className={`conversation-stage ${launchSnapshot ? 'launch-enter' : ''}`} key="conversation-stage">
               <ResearchConversation
                 history={conversationHistory}
-                snapshot={snapshot}
+                snapshot={activeSnapshot}
                 onOpenAgent={openAgentTrace}
                 messagesRef={messagesRef}
+                oceanTargetRef={oceanTargetRef}
                 onBreakAutoScroll={() => { autoScrollRef.current = false }}
                 onReachBottom={() => { autoScrollRef.current = true }}
               />
           </div>
-        ) : (
-          <div className="welcome-transition">
+        ) : null}
+
+        {!snapshot ? (
+          <div className={`welcome-transition ${launchSnapshot ? 'launch-exit' : ''}`} key="welcome-transition">
               <WelcomeComposer
                 question={question}
                 setQuestion={setQuestion}
@@ -384,14 +480,14 @@ function FleetHome() {
                 onSubmit={startResearch}
               />
           </div>
-        )}
+        ) : null}
 
-        {snapshot ? (
-          <form className="follow-up-composer" onSubmit={(event) => startResearch(event, 'follow-up')}>
+        {activeSnapshot ? (
+          <form className={`follow-up-composer ${launchSnapshot ? 'launch-enter' : ''}`} onSubmit={(event) => startResearch(event, 'follow-up')}>
             <label className="sr-only" htmlFor="follow-up-question">Follow-up question</label>
             <input
               id="follow-up-question"
-              value={question}
+              value={snapshot ? question : ''}
               onChange={(event) => setQuestion(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
@@ -401,7 +497,7 @@ function FleetHome() {
               }}
               placeholder="Ask a follow-up question"
             />
-            <button type="submit" disabled={submitting || question.trim().length < 3}>
+            <button type="submit" disabled={!snapshot || submitting || question.trim().length < 3}>
               <ArrowUp aria-hidden="true" size={15} strokeWidth={2} />
               <span className="sr-only">Ask follow-up</span>
             </button>
@@ -478,11 +574,6 @@ function WelcomeComposer(props: {
           </button>
         </div>
       </form>
-      <div className="ocean-transition-frame ocean-transition-hero">
-        <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
-          <ResearchOcean />
-        </Suspense>
-      </div>
     </section>
   )
 }
@@ -536,6 +627,7 @@ function ResearchConversation({
   snapshot,
   onOpenAgent,
   messagesRef,
+  oceanTargetRef,
   onBreakAutoScroll,
   onReachBottom,
 }: {
@@ -543,6 +635,7 @@ function ResearchConversation({
   snapshot: RunSnapshot
   onOpenAgent: (agentId: string, turn: RunSnapshot) => void
   messagesRef: React.RefObject<HTMLDivElement | null>
+  oceanTargetRef: React.RefObject<HTMLDivElement | null>
   onBreakAutoScroll: () => void
   onReachBottom: () => void
 }) {
@@ -569,7 +662,7 @@ function ResearchConversation({
         {history.map((turn) => (
           <ResearchTurn key={turn.id} snapshot={turn} archived onOpenAgent={onOpenAgent} />
         ))}
-        <ResearchTurn snapshot={snapshot} onOpenAgent={onOpenAgent} />
+        <ResearchTurn snapshot={snapshot} onOpenAgent={onOpenAgent} oceanTargetRef={oceanTargetRef} />
       </div>
     </div>
   )
@@ -579,10 +672,12 @@ function ResearchTurn({
   snapshot,
   archived = false,
   onOpenAgent,
+  oceanTargetRef,
 }: {
   snapshot: RunSnapshot
   archived?: boolean
   onOpenAgent: (agentId: string, turn: RunSnapshot) => void
+  oceanTargetRef?: React.RefObject<HTMLDivElement | null>
 }) {
   const answer = snapshot.finalAnswer ?? snapshot.partialAnswer
   const openAgent = (agentId: string) => onOpenAgent(agentId, snapshot)
@@ -596,11 +691,11 @@ function ResearchTurn({
           {!archived && (snapshot.status === 'running' || snapshot.status === 'synthesizing') ? <TypingDots /> : null}
         </header>
         {archived ? null : (
-          <div className="ocean-transition-frame ocean-transition-compact">
-            <Suspense fallback={<OceanFallback label="Launching the fleet" />}>
-              <ResearchOcean snapshot={snapshot} onOpenAgent={openAgent} />
-            </Suspense>
-          </div>
+          <div
+            ref={oceanTargetRef}
+            className="ocean-transition-frame ocean-transition-compact"
+            aria-hidden="true"
+          />
         )}
         {answer ? null : <ResearchProgress snapshot={snapshot} />}
         {archived ? null : <ResearchActivity snapshot={snapshot} onOpenAgent={openAgent} />}
