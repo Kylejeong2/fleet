@@ -371,7 +371,7 @@ function FleetHome() {
       return
     }
     setLaunchSnapshot(nextSnapshot)
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 2300))
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 1900))
     setSnapshot(nextSnapshot)
     setLaunchSnapshot(null)
     setQuestion('')
@@ -688,7 +688,7 @@ function ResearchTurn({
         {archived ? null : (
           <div
             ref={oceanTargetRef}
-            className={`ocean-transition-frame ocean-transition-compact ${snapshot.status === 'completed' ? 'complete' : ''}`}
+            className="ocean-transition-frame ocean-transition-compact"
             aria-hidden="true"
           />
         )}

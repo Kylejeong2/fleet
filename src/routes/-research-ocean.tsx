@@ -322,7 +322,12 @@ function useThreeOcean(
       camera.aspect = width / height
       camera.updateProjectionMatrix()
     }
-    const resizeObserver = new ResizeObserver(() => resizeCanvas())
+    let resizeTimer = 0
+    const resizeObserver = new ResizeObserver(() => {
+      if (liveState.current.phase === 'morphing') return
+      window.clearTimeout(resizeTimer)
+      resizeTimer = window.setTimeout(() => resizeCanvas(true), 480)
+    })
     resizeObserver.observe(canvas)
     resizeCanvas(true)
 
@@ -346,9 +351,11 @@ function useThreeOcean(
         ? 0
         : state.phase === 'fleet'
           ? 1
-          : THREE.MathUtils.clamp((elapsed - morphStartedAt) / 2.15, 0, 1)
+          : THREE.MathUtils.clamp((elapsed - morphStartedAt) / 1.8, 0, 1)
       const morph = reducedMotion ? (state.phase === 'hero' ? 0 : 1) : smootherStep(rawMorph)
-      const fleetReveal = smootherStep(THREE.MathUtils.clamp((morph - .58) / .42, 0, 1))
+      const heroRetire = smootherStep(THREE.MathUtils.clamp((morph - .32) / .24, 0, 1))
+      const harborReveal = smootherStep(THREE.MathUtils.clamp((morph - .48) / .2, 0, 1))
+      const fleetReveal = smootherStep(THREE.MathUtils.clamp((morph - .68) / .32, 0, 1))
       if (morph > .72 && !usingFleetWater) {
         water.geometry = fleetWaterGeometry
         usingFleetWater = true
@@ -381,10 +388,10 @@ function useThreeOcean(
       previewBoat.position.y += reducedMotion ? 0 : Math.sin(elapsed * 1.35) * .05
       previewBoat.rotation.y = THREE.MathUtils.lerp(-.9, 0, morph)
       previewBoat.rotation.z = reducedMotion ? 0 : Math.sin(elapsed * 1.05) * .025
-      previewBoat.scale.setScalar(THREE.MathUtils.lerp(.65, 0, fleetReveal))
-      previewBoat.visible = fleetReveal < 1
-      dockMaterials.forEach((material) => { material.opacity = fleetReveal })
-      dock.visible = fleetReveal > .01
+      previewBoat.scale.setScalar(.65 * (1 - heroRetire))
+      previewBoat.visible = heroRetire < 1
+      dockMaterials.forEach((material) => { material.opacity = harborReveal })
+      dock.visible = harborReveal > .01
 
       boats.forEach((boat, index) => {
         const agent = state.agents[index]
@@ -505,6 +512,7 @@ function useThreeOcean(
 
     return () => {
       cancelAnimationFrame(animationFrame)
+      window.clearTimeout(resizeTimer)
       timer.dispose()
       resizeObserver.disconnect()
       canvas.removeEventListener('pointermove', onPointerMove)
