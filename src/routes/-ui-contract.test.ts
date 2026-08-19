@@ -101,6 +101,8 @@ describe('interface copy contract', () => {
     expect(oceanSource).toContain('new THREE.WebGLRenderer')
     expect(oceanSource).toContain('new THREE.QuadraticBezierCurve3')
     expect(oceanSource).toContain('new THREE.Raycaster')
+    expect(oceanSource).toContain('new THREE.InstancedMesh')
+    expect(oceanSource).toContain('hit?.instanceId')
     expect(oceanSource).toContain('createBillowedSail')
     expect(oceanSource).not.toContain('movePreviewBoat')
     expect(oceanSource).toContain('new EffectComposer(renderer)')

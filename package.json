@@ -9,6 +9,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
+    "benchmark:threejs": "node scripts/benchmark-threejs.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run src --passWithNoTests",
     "check": "pnpm typecheck && pnpm test && pnpm build"

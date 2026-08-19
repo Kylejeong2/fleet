@@ -45,6 +45,7 @@ Configure the provider variables in `.env.example`. Add a Vercel KV or Upstash R
 - [HTTP API](docs/api.md)
 - [Event protocol](docs/events.md)
 - [Agent animation](docs/animation.md)
+- [Three.js performance benchmark](docs/threejs-performance.md)
 - [Providers and execution profiles](docs/providers.md)
 - [Local development](docs/local-development.md)
 - [Testing](docs/testing.md)
