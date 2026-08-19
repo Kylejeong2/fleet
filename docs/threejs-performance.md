@@ -34,6 +34,8 @@ The main gain comes from keeping the detailed single hero boat while merging and
 
 The August 19 single-canvas morph follow-up keeps the benchmark gated on the completed transition before sampling. Across five steady-state windows it held 120 FPS, a 9.0 ms p95 frame time, zero frames over 20 ms, 126.21 draw calls per frame, and 49,146 triangles per frame. The transition therefore preserves the optimized live-scene rendering profile.
 
+The August 19 one-agent pass scales the instance draw count to the active fleet, skips inactive boat and pin updates, reuses curve vectors, and instances repeated harbor geometry. Against the same five-trial one-agent baseline, draw calls fell from 52.09 to 41.07 per frame (21.2%) and triangles fell from 42,014 to 18,424 per frame (56.1%). FPS remained at 120, p95 remained 9.1 ms, and both runs recorded zero frames over 20 ms.
+
 ## Visual and behavior checks
 
 - Stable homepage and completed-run frames render without black canvases, clipping, z-fighting, or transparency defects.

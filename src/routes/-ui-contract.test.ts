@@ -112,6 +112,8 @@ describe('interface copy contract', () => {
     expect(oceanSource).toContain('smootherStep(launchTime)')
     expect(oceanSource).toMatch(/const render = [\s\S]*const state = liveState\.current\n\s+resizeCanvas\(\)/)
     expect(oceanSource).toContain('width === renderWidth && height === renderHeight')
+    expect(oceanSource).toContain('fleetBoats.count = agentCount')
+    expect(oceanSource).not.toContain('curve.getTangent(progress')
     expect(oceanSource).toContain('const heroRetire =')
     expect(oceanSource).toContain('const harborReveal =')
     expect(oceanSource).toContain('(morph - .68) / .32')
