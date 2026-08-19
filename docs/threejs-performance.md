@@ -31,6 +31,8 @@ The homepage hero remained at 120 FPS while triangles fell from 48,233 to 27,719
 
 The main gain comes from keeping the detailed single hero boat while merging and instancing the 50 live boats. Status colors and transforms update through instance buffers, route and agent identity remain separate, and the raycaster maps `instanceId` back to the existing agent trace callback.
 
+The August 19 launch-transition follow-up held the optimized 50-agent scene at 120 FPS with a 9.0 ms p95 frame time, zero frames over 20 ms, 126.21 draw calls per frame, and 49,146 triangles per frame. The crossfade and time-based fleet journey therefore add no steady-state rendering regression.
+
 ## Visual and behavior checks
 
 - Stable homepage and completed-run frames render without black canvases, clipping, z-fighting, or transparency defects.

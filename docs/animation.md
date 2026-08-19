@@ -12,6 +12,7 @@ The homepage and live conversation also render the fleet as a Three.js research 
 - A raycaster and matching DOM targets let pointer and keyboard users open the real agent trace from a boat.
 - The scene uses capped device pixel ratio, disposes all GPU resources on unmount, and stops camera/water motion when reduced motion is requested.
 - The homepage keeps one detailed boat, while live runs merge the boat silhouette once and render up to 50 researchers through one `InstancedMesh`. Instance transforms, status colors, and raycast IDs preserve the existing per-agent behavior without rebuilding or traversing 50 mesh hierarchies every frame.
+- Launching research mounts the compact conversation ocean beneath the still-visible search ocean, then crossfades and scales the two layers over a reserved final layout. Event replay begins after that handoff, and the live boats leave the dock on staggered, time-based curves; even a fast terminal event completes the outbound journey before a boat returns.
 - Three.js is split from the main route chunk and loaded behind a dark ocean fallback so the existing research interface does not absorb the rendering runtime.
 
 The reproducible before-and-after measurements live in [Three.js performance benchmark](./threejs-performance.md).

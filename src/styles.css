@@ -36,15 +36,18 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
   box-shadow: 0 8px 30px rgb(0 0 0 / 8%);
 }
 
-.conversation { position: relative; display: grid; width: 100%; height: 100%; min-width: 0; min-height: 0; grid-template-rows: 48px minmax(0, 1fr) auto; background: #fff; }
-.welcome-transition, .conversation-stage { min-width: 0; min-height: 0; overflow: hidden; }
+.conversation { position: relative; display: grid; width: 100%; height: 100%; min-width: 0; min-height: 0; grid-template-rows: 48px minmax(0, 1fr) auto; background: #fff; transition: background-color .7s cubic-bezier(.16, 1, .3, 1); }
+.welcome-transition, .conversation-stage { min-width: 0; min-height: 0; grid-row: 2; grid-column: 1; overflow: hidden; }
 .welcome-transition { height: 100%; }
 .conversation-stage { display: grid; }
-.conversation-header { display: flex; align-items: center; gap: 9px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+.conversation-stage.launch-enter { z-index: 1; pointer-events: none; animation: launch-stage-in 1.35s both cubic-bezier(.16, 1, .3, 1); }
+.welcome-transition.launch-exit { z-index: 2; pointer-events: none; animation: launch-home-out 1.35s both cubic-bezier(.4, 0, .2, 1); }
+.follow-up-composer.launch-enter { pointer-events: none; animation: launch-footer-in 1.35s both cubic-bezier(.16, 1, .3, 1); }
+.conversation-header { display: flex; align-items: center; gap: 9px; padding: 0 16px; border-bottom: 1px solid var(--line); transition: border-color .7s, background-color .7s, color .7s; }
 .fleet-boat-mark { width: 30px; height: 22px; flex: 0 0 30px; overflow: visible; }
-.fleet-boat-mark .boat { stroke: #614b35; stroke-width: .8; stroke-linejoin: round; }
-.fleet-boat-mark .boat-sail { fill: #f4e6d1; }
-.fleet-boat-mark .boat-hull { fill: #8b6b48; }
+.fleet-boat-mark .boat { stroke: #614b35; stroke-width: .8; stroke-linejoin: round; transition: stroke .7s; }
+.fleet-boat-mark .boat-sail { fill: #f4e6d1; transition: fill .7s; }
+.fleet-boat-mark .boat-hull { fill: #8b6b48; transition: fill .7s; }
 .fleet-boat-mark .boat-back { opacity: .48; }
 .fleet-boat-mark .boat-middle { opacity: .72; }
 .fleet-boat-mark .boat-front { opacity: 1; }
@@ -62,6 +65,12 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .fleet-mark i:nth-child(3) { bottom: 0; left: 5px; }
 
 .conversation.ocean-home { background: #020a0f; color: #f4fffd; }
+.conversation.launching { background: var(--panel); }
+.conversation.launching .conversation-header { position: relative; z-index: 10; border-bottom-color: rgb(126 255 241 / 13%); background: rgb(2 10 15 / 92%); color: #effffc; }
+.conversation.launching .fleet-boat-mark .boat { stroke: #84fff3; }
+.conversation.launching .fleet-boat-mark .boat-sail { fill: #c5fff9; }
+.conversation.launching .fleet-boat-mark .boat-hull { fill: #2baba2; }
+.conversation.launching .run-meta, .conversation.launching .view-fleet-button { animation: launch-header-in .7s both ease-out; }
 .conversation.ocean-home .conversation-header { position: relative; z-index: 10; border-bottom-color: rgb(126 255 241 / 13%); background: rgb(2 10 15 / 62%); color: #effffc; backdrop-filter: blur(18px); }
 .conversation.ocean-home .fleet-boat-mark .boat { stroke: #84fff3; }
 .conversation.ocean-home .fleet-boat-mark .boat-sail { fill: #c5fff9; }
@@ -130,6 +139,17 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-
 .response .research-ocean { margin: 0; }
 .response .research-ocean.complete { height: 340px; }
 @keyframes source-surface { from { opacity: 0; transform: translateY(9px) scale(.96); } }
+
+@keyframes launch-home-out {
+  0%, 18% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.025); }
+}
+@keyframes launch-stage-in {
+  0%, 12% { opacity: 0; transform: translateY(24px) scale(.975); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes launch-footer-in { 0%, 45% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
+@keyframes launch-header-in { from { opacity: 0; transform: translateY(-5px); } }
 .messages { overflow: auto; overscroll-behavior-y: contain; padding: 26px var(--chat-gutter) 34px; scrollbar-color: #b9bbb6 transparent; scrollbar-gutter: stable; scrollbar-width: thin; }
 .messages::-webkit-scrollbar { width: 10px; }
 .messages::-webkit-scrollbar-track { background: transparent; }

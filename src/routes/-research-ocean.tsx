@@ -8,6 +8,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { AgentSnapshot, RunSnapshot } from '../lib/fleet-protocol'
 
 const MAX_VISIBLE_BOATS = 50
+const FLEET_REVEAL_DELAY_SECONDS = .18
+const FLEET_LAUNCH_SECONDS = 2.8
+const FLEET_RETURN_SECONDS = 2.2
 
 const territories = [
   { x: 13, y: 27, world: new THREE.Vector3(-8.4, 0, -5.8) },
@@ -351,16 +354,50 @@ function useThreeOcean(
           return
         }
 
-        const targetProgress = agent.status === 'planned'
-          ? .025
-          : agent.status === 'succeeded'
-            ? .1 + (index % 8) * .012
-            : agent.status === 'failed'
-              ? .78
-              : .93
-        boat.userData.progress = THREE.MathUtils.lerp(boat.userData.progress as number, targetProgress, reducedMotion ? 1 : .025 + (index % 5) * .002)
+        const dockProgress = .018 + (index % 3) * .004
+        const outboundProgress = .84 + (index % 5) * .012
+        const returnedProgress = .1 + (index % 8) * .012
+        let progress: number
+        let routeReveal = 0
+        if (reducedMotion) {
+          progress = agent.status === 'planned'
+            ? dockProgress
+            : agent.status === 'succeeded'
+              ? returnedProgress
+              : agent.status === 'failed'
+                ? .78
+                : outboundProgress
+          routeReveal = 1
+        } else if (agent.status === 'planned') {
+          boat.userData.launchAt = undefined
+          boat.userData.returnAt = undefined
+          progress = THREE.MathUtils.lerp(boat.userData.progress as number, dockProgress, .08)
+        } else {
+          if (typeof boat.userData.launchAt !== 'number') {
+            const stagger = (index % 10) * .08 + Math.floor(index / 10) * .035
+            boat.userData.launchAt = elapsed + FLEET_REVEAL_DELAY_SECONDS + stagger
+          }
+          const launchTime = THREE.MathUtils.clamp(
+            (elapsed - (boat.userData.launchAt as number)) / FLEET_LAUNCH_SECONDS,
+            0,
+            1,
+          )
+          routeReveal = smootherStep(launchTime)
+          progress = THREE.MathUtils.lerp(dockProgress, outboundProgress, routeReveal)
+          if (launchTime >= 1 && agent.status === 'succeeded') {
+            if (typeof boat.userData.returnAt !== 'number') boat.userData.returnAt = elapsed
+            const returnTime = THREE.MathUtils.clamp(
+              (elapsed - (boat.userData.returnAt as number)) / FLEET_RETURN_SECONDS,
+              0,
+              1,
+            )
+            progress = THREE.MathUtils.lerp(outboundProgress, returnedProgress, smootherStep(returnTime))
+          } else if (launchTime >= 1 && agent.status === 'failed') {
+            progress = THREE.MathUtils.lerp(outboundProgress, .78, .35)
+          }
+        }
+        boat.userData.progress = progress
         const curve = boat.userData.curve as THREE.QuadraticBezierCurve3
-        const progress = boat.userData.progress as number
         const point = curve.getPoint(progress)
         const tangent = curve.getTangent(progress)
         boat.position.copy(point)
@@ -368,9 +405,11 @@ function useThreeOcean(
         boat.rotation.y = THREE.MathUtils.clamp(Math.atan2(tangent.x, tangent.z), -.9, .9)
         boat.rotation.z = reducedMotion ? 0 : Math.sin(elapsed * 1.3 + index) * .035
         const failed = agent.status === 'failed' || agent.retrying
+        const returned = agent.status === 'succeeded'
+          && (reducedMotion || typeof boat.userData.returnAt === 'number')
         boat.visible = agent.status !== 'planned' || index < 12
         if (fleetBoats) {
-          const color = failed ? 0xff4f5e : agent.status === 'succeeded' ? 0xffd76a : 0x72fff2
+          const color = failed ? 0xff4f5e : returned ? 0xffd76a : 0x72fff2
           if (boat.userData.color !== color) {
             fleetBoats.setColorAt(index, scratchColor.setHex(color))
             boat.userData.color = color
@@ -386,8 +425,9 @@ function useThreeOcean(
         const route = routes[index]
         if (!route) return
         const routeMaterial = route.material as THREE.LineBasicMaterial
-        routeMaterial.color.setHex(failed ? 0xff334c : agent.status === 'succeeded' ? 0xffd76a : 0x4beadd)
-        routeMaterial.opacity = agent.status === 'planned' ? .035 : agent.status === 'running' ? .48 : .24
+        routeMaterial.color.setHex(failed ? 0xff334c : returned ? 0xffd76a : 0x4beadd)
+        const routeOpacity = agent.status === 'planned' ? .035 : agent.status === 'running' ? .48 : .24
+        routeMaterial.opacity = routeOpacity * (.06 + routeReveal * .94)
       })
 
       destinationPins.forEach((pin, index) => {
@@ -441,6 +481,10 @@ function useThreeOcean(
       renderer.dispose()
     }
   }, [boatCount, canvasRef, hero, liveState, onOpenAgent, reducedMotion])
+}
+
+function smootherStep(value: number): number {
+  return value * value * value * (value * (value * 6 - 15) + 10)
 }
 
 function createSky(): THREE.Mesh {
