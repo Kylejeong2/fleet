@@ -22,6 +22,7 @@ import {
   useEffect,
   useId,
   lazy,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -134,8 +135,12 @@ function FleetHome() {
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
+  const conversationRef = useRef<HTMLElement>(null)
+  const oceanLayerRef = useRef<HTMLDivElement>(null)
+  const oceanTargetRef = useRef<HTMLDivElement>(null)
   const autoScrollRef = useRef(true)
   const appendingFollowUpRef = useRef(false)
+  const activeSnapshot = snapshot ?? launchSnapshot
 
   function setSnapshot(value: SetStateAction<RunSnapshot | null>) {
     dispatchRunView({ type: 'set-snapshot', value })
@@ -214,6 +219,32 @@ function FleetHome() {
     })
     return () => cancelAnimationFrame(frame)
   }, [snapshot?.latestSequence])
+
+  useLayoutEffect(() => {
+    const layer = oceanLayerRef.current
+    const target = oceanTargetRef.current
+    const conversation = conversationRef.current
+    if (!activeSnapshot || !layer || !target || !conversation) return
+    const syncOceanTarget = () => {
+      const targetRect = target.getBoundingClientRect()
+      const conversationRect = conversation.getBoundingClientRect()
+      layer.style.setProperty('--ocean-target-x', `${targetRect.left - conversationRect.left}px`)
+      layer.style.setProperty('--ocean-target-y', `${targetRect.top - conversationRect.top}px`)
+      layer.style.setProperty('--ocean-target-width', `${targetRect.width}px`)
+      layer.style.setProperty('--ocean-target-height', `${targetRect.height}px`)
+    }
+    syncOceanTarget()
+    const observer = new ResizeObserver(syncOceanTarget)
+    observer.observe(target)
+    observer.observe(conversation)
+    conversation.addEventListener('scroll', syncOceanTarget, true)
+    window.addEventListener('resize', syncOceanTarget)
+    return () => {
+      observer.disconnect()
+      conversation.removeEventListener('scroll', syncOceanTarget, true)
+      window.removeEventListener('resize', syncOceanTarget)
+    }
+  }, [activeSnapshot?.id])
 
   useEffect(() => {
     if (!fleetOpen) return
@@ -340,7 +371,7 @@ function FleetHome() {
       return
     }
     setLaunchSnapshot(nextSnapshot)
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 1350))
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 2300))
     setSnapshot(nextSnapshot)
     setLaunchSnapshot(null)
     setQuestion('')
@@ -362,12 +393,10 @@ function FleetHome() {
     })
   }
 
-  const activeSnapshot = snapshot ?? launchSnapshot
-
   return (
     <LazyMotion features={domAnimation} strict>
     <main className="app-shell" data-hydrated={hydrated ? 'true' : 'false'}>
-      <section className={`conversation ${snapshot ? 'has-run' : launchSnapshot ? 'launching' : 'ocean-home'}`} aria-label="Fleet chat">
+      <section ref={conversationRef} className={`conversation ${snapshot ? 'has-run' : launchSnapshot ? 'launching' : 'ocean-home'}`} aria-label="Fleet chat">
         <header className="conversation-header">
           <FleetBoatMark />
           <span className="conversation-title">Fleet</span>
@@ -408,6 +437,19 @@ function FleetHome() {
           </div>
         </header>
 
+        <div
+          ref={oceanLayerRef}
+          className={`ocean-morph-layer ${launchSnapshot ? 'launching' : snapshot ? 'compact' : 'hero'}`}
+        >
+          <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
+            <ResearchOcean
+              snapshot={activeSnapshot ?? undefined}
+              phase={launchSnapshot ? 'morphing' : snapshot ? 'fleet' : 'hero'}
+              onOpenAgent={snapshot ? (agentId) => openAgentTrace(agentId) : undefined}
+            />
+          </Suspense>
+        </div>
+
         {activeSnapshot ? (
           <div className={`conversation-stage ${launchSnapshot ? 'launch-enter' : ''}`} key="conversation-stage">
               <ResearchConversation
@@ -415,6 +457,7 @@ function FleetHome() {
                 snapshot={activeSnapshot}
                 onOpenAgent={openAgentTrace}
                 messagesRef={messagesRef}
+                oceanTargetRef={oceanTargetRef}
                 onBreakAutoScroll={() => { autoScrollRef.current = false }}
                 onReachBottom={() => { autoScrollRef.current = true }}
               />
@@ -526,11 +569,6 @@ function WelcomeComposer(props: {
           </button>
         </div>
       </form>
-      <div className="ocean-transition-frame ocean-transition-hero">
-        <Suspense fallback={<OceanFallback label="Charting the research ocean" />}>
-          <ResearchOcean />
-        </Suspense>
-      </div>
     </section>
   )
 }
@@ -584,6 +622,7 @@ function ResearchConversation({
   snapshot,
   onOpenAgent,
   messagesRef,
+  oceanTargetRef,
   onBreakAutoScroll,
   onReachBottom,
 }: {
@@ -591,6 +630,7 @@ function ResearchConversation({
   snapshot: RunSnapshot
   onOpenAgent: (agentId: string, turn: RunSnapshot) => void
   messagesRef: React.RefObject<HTMLDivElement | null>
+  oceanTargetRef: React.RefObject<HTMLDivElement | null>
   onBreakAutoScroll: () => void
   onReachBottom: () => void
 }) {
@@ -617,7 +657,7 @@ function ResearchConversation({
         {history.map((turn) => (
           <ResearchTurn key={turn.id} snapshot={turn} archived onOpenAgent={onOpenAgent} />
         ))}
-        <ResearchTurn snapshot={snapshot} onOpenAgent={onOpenAgent} />
+        <ResearchTurn snapshot={snapshot} onOpenAgent={onOpenAgent} oceanTargetRef={oceanTargetRef} />
       </div>
     </div>
   )
@@ -627,10 +667,12 @@ function ResearchTurn({
   snapshot,
   archived = false,
   onOpenAgent,
+  oceanTargetRef,
 }: {
   snapshot: RunSnapshot
   archived?: boolean
   onOpenAgent: (agentId: string, turn: RunSnapshot) => void
+  oceanTargetRef?: React.RefObject<HTMLDivElement | null>
 }) {
   const answer = snapshot.finalAnswer ?? snapshot.partialAnswer
   const openAgent = (agentId: string) => onOpenAgent(agentId, snapshot)
@@ -644,11 +686,11 @@ function ResearchTurn({
           {!archived && (snapshot.status === 'running' || snapshot.status === 'synthesizing') ? <TypingDots /> : null}
         </header>
         {archived ? null : (
-          <div className="ocean-transition-frame ocean-transition-compact">
-            <Suspense fallback={<OceanFallback label="Launching the fleet" />}>
-              <ResearchOcean snapshot={snapshot} onOpenAgent={openAgent} />
-            </Suspense>
-          </div>
+          <div
+            ref={oceanTargetRef}
+            className={`ocean-transition-frame ocean-transition-compact ${snapshot.status === 'completed' ? 'complete' : ''}`}
+            aria-hidden="true"
+          />
         )}
         {answer ? null : <ResearchProgress snapshot={snapshot} />}
         {archived ? null : <ResearchActivity snapshot={snapshot} onOpenAgent={openAgent} />}

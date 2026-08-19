@@ -129,6 +129,7 @@ async function runTrial(trial) {
       })()
     ` })
     await waitForExpression(cdp, "document.querySelectorAll('.ocean-agent-target').length === 50")
+    await waitForExpression(cdp, "document.querySelector('.conversation')?.classList.contains('has-run')")
   }
   await wait(1500)
   await cdp.send('Runtime.evaluate', { expression: 'window.__fleetBenchmark.start()' })
