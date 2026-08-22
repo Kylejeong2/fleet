@@ -111,7 +111,12 @@ const runInput = (agentCount: number, concurrency: number): CreateRunInput => ({
 
 const createAcceptedRun = (journal: FleetJournal, input: CreateRunInput) => {
   const runId = createRunId()
-  journal.createRun({ runId, input, idempotencyKey: null })
+  journal.createRun({
+    runId,
+    input,
+    idempotencyKey: null,
+    actor: { tenantId: 'tenant_1', userId: 'user_1' },
+  })
   return runId
 }
 

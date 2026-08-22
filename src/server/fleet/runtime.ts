@@ -12,6 +12,12 @@ import {
   createRedisIdempotencyStore,
   type IdempotencyStore,
 } from './idempotency'
+import {
+  createRedisCommand,
+  RedisRunOwnershipStore,
+  type RunOwnershipStore,
+} from './ownership'
+import type { FleetActor } from '../auth'
 import { replayEvents } from './reducer'
 import {
   getFleetService,
@@ -28,43 +34,61 @@ export interface FleetRuntime {
   createRun(args: {
     input: CreateRunInput
     idempotencyKey: string | null
+    actor: FleetActor
   }): Promise<RunSnapshot>
-  getRun(runId: RunId): Promise<RunSnapshot>
-  createEventStream(runId: RunId, after: number): Promise<ReadableStream<Uint8Array>>
+  getRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot>
+  createEventStream(
+    actor: FleetActor,
+    runId: RunId,
+    after: number,
+  ): Promise<ReadableStream<Uint8Array>>
 }
 
 class LocalFleetRuntime implements FleetRuntime {
   async createRun(args: {
     input: CreateRunInput
     idempotencyKey: string | null
+    actor: FleetActor
   }): Promise<RunSnapshot> {
     return getFleetService().createRun(args)
   }
 
-  async getRun(runId: RunId): Promise<RunSnapshot> {
-    return getFleetService().getRun(runId)
+  async getRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot> {
+    return getFleetService().getRun(actor, runId)
   }
 
-  async createEventStream(runId: RunId, after: number): Promise<ReadableStream<Uint8Array>> {
-    getFleetService().events(runId, after)
-    return createFleetEventStream(getFleetService(), runId, after)
+  async createEventStream(
+    actor: FleetActor,
+    runId: RunId,
+    after: number,
+  ): Promise<ReadableStream<Uint8Array>> {
+    getFleetService().events(actor, runId, after)
+    return createFleetEventStream(getFleetService(), actor, runId, after)
   }
 }
 
 export class WorkflowFleetRuntime implements FleetRuntime {
-  constructor(private readonly idempotency: IdempotencyStore | null) {}
+  constructor(
+    private readonly idempotency: IdempotencyStore | null,
+    private readonly ownership: RunOwnershipStore | null,
+  ) {}
 
   async createRun(args: {
     input: CreateRunInput
     idempotencyKey: string | null
+    actor: FleetActor
   }): Promise<RunSnapshot> {
-    if (!args.idempotencyKey) return this.startRun(args.input)
-    if (!this.idempotency) {
+    if (!this.idempotency || !this.ownership) {
       throw new ProfileNotReadyError(
-        'Workflow mode requires a Redis integration for durable idempotency.',
+        'Workflow mode requires a Redis integration for run ownership and idempotency.',
       )
     }
-    const reservation = await this.idempotency.reserve(args.idempotencyKey, args.input)
+    if (!args.idempotencyKey) return this.startOwnedRun(args.input, args.actor)
+    const reservation = await this.idempotency.reserve(
+      args.actor.tenantId,
+      args.idempotencyKey,
+      args.input,
+    )
     if (reservation.kind === 'conflict') {
       throw new IdempotencyConflictError(
         'That Idempotency-Key was already used with a different request.',
@@ -74,13 +98,14 @@ export class WorkflowFleetRuntime implements FleetRuntime {
       throw new RunStartPendingError('That research run is still being enqueued. Retry shortly.')
     }
     if (reservation.kind === 'existing') {
-      return this.getRunOrAccepted(reservation.runId, args.input)
+      return this.getRunOrAccepted(args.actor, reservation.runId, args.input)
     }
     let snapshot: RunSnapshot
     try {
-      snapshot = await this.startRun(args.input)
+      snapshot = await this.startOwnedRun(args.input, args.actor)
     } catch (error) {
       await this.idempotency.release(
+        args.actor.tenantId,
         args.idempotencyKey,
         reservation.token,
         reservation.requestHash,
@@ -89,6 +114,7 @@ export class WorkflowFleetRuntime implements FleetRuntime {
     }
     try {
       await retryIdempotencyCommit(() => this.idempotency!.commit(
+        args.actor.tenantId,
         args.idempotencyKey!,
         reservation.token,
         reservation.requestHash,
@@ -103,7 +129,8 @@ export class WorkflowFleetRuntime implements FleetRuntime {
     return snapshot
   }
 
-  async getRun(runId: RunId): Promise<RunSnapshot> {
+  async getRun(actor: FleetActor, runId: RunId): Promise<RunSnapshot> {
+    await this.assertOwnership(actor, runId)
     const run = getRun(runId)
     if (!(await run.exists)) throw new RunNotFoundError('Research run not found.')
     const events = await readAvailableEvents(runId)
@@ -112,7 +139,12 @@ export class WorkflowFleetRuntime implements FleetRuntime {
     return snapshot
   }
 
-  async createEventStream(runId: RunId, after: number): Promise<ReadableStream<Uint8Array>> {
+  async createEventStream(
+    actor: FleetActor,
+    runId: RunId,
+    after: number,
+  ): Promise<ReadableStream<Uint8Array>> {
+    await this.assertOwnership(actor, runId)
     const run = getRun(runId)
     if (!(await run.exists)) throw new RunNotFoundError('Research run not found.')
     const source = run.getReadable<FleetEventDraft>({ startIndex: after })
@@ -147,12 +179,36 @@ export class WorkflowFleetRuntime implements FleetRuntime {
     return acceptedSnapshot(parseRunId(run.runId), input)
   }
 
-  private async getRunOrAccepted(runId: RunId, input: CreateRunInput): Promise<RunSnapshot> {
+  private async startOwnedRun(
+    input: CreateRunInput,
+    actor: FleetActor,
+  ): Promise<RunSnapshot> {
+    const snapshot = await this.startRun(input)
     try {
-      return await this.getRun(runId)
+      await this.ownership!.put(snapshot.id, actor)
+    } catch (error) {
+      await getRun(snapshot.id).cancel().catch(() => undefined)
+      throw error
+    }
+    return snapshot
+  }
+
+  private async getRunOrAccepted(
+    actor: FleetActor,
+    runId: RunId,
+    input: CreateRunInput,
+  ): Promise<RunSnapshot> {
+    try {
+      return await this.getRun(actor, runId)
     } catch (error) {
       if (error instanceof RunNotFoundError) return acceptedSnapshot(runId, input)
       throw error
+    }
+  }
+
+  private async assertOwnership(actor: FleetActor, runId: RunId): Promise<void> {
+    if (!this.ownership || !(await this.ownership.owns(runId, actor.tenantId))) {
+      throw new RunNotFoundError('Research run not found.')
     }
   }
 }
@@ -217,8 +273,10 @@ export const getFleetRuntime = (): FleetRuntime => {
     (process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL) &&
     (process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN),
   )
+  const command = hasRedis ? createRedisCommand(process.env) : null
   singleton = new WorkflowFleetRuntime(
     hasRedis ? createRedisIdempotencyStore(process.env) : null,
+    command ? new RedisRunOwnershipStore(command) : null,
   )
   return singleton
 }

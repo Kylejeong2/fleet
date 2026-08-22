@@ -8,12 +8,13 @@ const input: CreateRunInput = {
   concurrency: 2,
   profile: 'development',
 }
+const actor = { tenantId: 'tenant_1', userId: 'user_1' }
 
 describe('FleetJournal', () => {
   it('returns the first run for an identical idempotent request', () => {
     const journal = new FleetJournal(':memory:')
-    const first = journal.createRun({ runId: createRunId(), input, idempotencyKey: 'same' })
-    const second = journal.createRun({ runId: createRunId(), input, idempotencyKey: 'same' })
+    const first = journal.createRun({ runId: createRunId(), input, idempotencyKey: 'same', actor })
+    const second = journal.createRun({ runId: createRunId(), input, idempotencyKey: 'same', actor })
     expect(first.kind).toBe('created')
     expect(second.kind).toBe('existing')
     expect(second.runId).toBe(first.runId)
@@ -23,11 +24,12 @@ describe('FleetJournal', () => {
 
   it('detects reuse of a key with a different request', () => {
     const journal = new FleetJournal(':memory:')
-    journal.createRun({ runId: createRunId(), input, idempotencyKey: 'conflict' })
+    journal.createRun({ runId: createRunId(), input, idempotencyKey: 'conflict', actor })
     const result = journal.createRun({
       runId: createRunId(),
       input: { ...input, agentCount: 4 },
       idempotencyKey: 'conflict',
+      actor,
     })
     expect(result.kind).toBe('conflict')
     journal.close()
@@ -36,7 +38,7 @@ describe('FleetJournal', () => {
   it('assigns atomic run-local sequences', () => {
     const journal = new FleetJournal(':memory:')
     const runId = createRunId()
-    journal.createRun({ runId, input, idempotencyKey: null })
+    journal.createRun({ runId, input, idempotencyKey: null, actor })
     const second = journal.append(runId, (metadata) => ({
       kind: 'run.failed',
       runId,
@@ -44,6 +46,22 @@ describe('FleetJournal', () => {
       error: 'test',
     }))
     expect(second.sequence).toBe(2)
+    journal.close()
+  })
+
+  it('scopes idempotency and run access to the tenant', () => {
+    const journal = new FleetJournal(':memory:')
+    const first = journal.createRun({ runId: createRunId(), input, idempotencyKey: 'same', actor })
+    const other = journal.createRun({
+      runId: createRunId(),
+      input,
+      idempotencyKey: 'same',
+      actor: { tenantId: 'tenant_2', userId: 'user_2' },
+    })
+    expect(first.kind).toBe('created')
+    expect(other.kind).toBe('created')
+    expect(journal.ownsRun(first.runId, 'tenant_1')).toBe(true)
+    expect(journal.ownsRun(first.runId, 'tenant_2')).toBe(false)
     journal.close()
   })
 })

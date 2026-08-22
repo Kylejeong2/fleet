@@ -14,7 +14,7 @@ With no override, Fleet uses Workflow when `VERCEL` is present and local executi
 
 Local mode stores events and idempotency records in SQLite. Keep the database on persistent local storage and let one process own coordination.
 
-Workflow mode stores execution history and stream chunks in Vercel's durable Workflow system. HTTP functions can scale independently and do not require process affinity or a writable filesystem. A Vercel KV or Upstash Redis REST integration is required only when clients send `Idempotency-Key`.
+Workflow mode stores execution history and stream chunks in Vercel's durable Workflow system. HTTP functions can scale independently and do not require process affinity or a writable filesystem. A Vercel KV or Upstash Redis REST integration is required for tenant ownership and idempotency.
 
 Do not run multiple local-mode instances against the same SQLite file over network storage.
 
@@ -37,10 +37,12 @@ SSE consumers recover by replaying after their last committed sequence. A missin
 ## Security
 
 - Keep provider keys server-side.
+- Configure Clerk publishable and secret keys and require authentication on every run route.
+- Treat the active Clerk organization as the tenant; personal accounts are isolated by user ID.
 - Never write authorization headers or raw provider responses to public events.
 - Validate fetched URLs and external JSON.
 - Bound stored excerpts and public error strings.
-- Add authentication, tenant isolation, rate limits, and retention controls before exposing the service publicly.
+- Keep tenant ownership checks on create, snapshot, event-stream, and future mutation routes.
 
 ## Deferred capabilities
 

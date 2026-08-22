@@ -1,4 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
+import {
+  SignInButton,
+  Show,
+  UserButton,
+} from '@clerk/tanstack-react-start'
 import * as SelectPrimitive from '@radix-ui/react-select'
 import {
   ArrowLeft,
@@ -117,6 +122,26 @@ const botPalettes = [
 ] as const
 
 function FleetHome() {
+  return (
+    <Show
+      when="signed-in"
+      fallback={
+        <main className="auth-gate">
+          <FleetBoatMark />
+          <h1>Deep research needs a captain.</h1>
+          <p>Sign in to launch fleets and keep every run private to your workspace.</p>
+          <SignInButton mode="modal">
+            <button className="auth-gate-button" type="button">Sign in to Fleet</button>
+          </SignInButton>
+        </main>
+      }
+    >
+      <FleetApp />
+    </Show>
+  )
+}
+
+function FleetApp() {
   const [hydrated, setHydrated] = useState(false)
   const [question, setQuestion] = useState('')
   const [agentCount, setAgentCount] = useState(50)
@@ -439,6 +464,7 @@ function FleetHome() {
                 ? <Sun aria-hidden="true" size={16} strokeWidth={1.8} />
                 : <Moon aria-hidden="true" size={16} strokeWidth={1.8} />}
             </button>
+            <UserButton />
           </div>
         </header>
 

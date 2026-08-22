@@ -11,6 +11,7 @@ import {
   parseRunId,
   type RunId,
 } from '../../lib/fleet-protocol'
+import type { FleetActor } from '../auth'
 
 const ExistingIdempotencySchema = z.object({
   request_hash: z.string(),
@@ -19,6 +20,7 @@ const ExistingIdempotencySchema = z.object({
 
 const EventRowSchema = z.object({ event_json: z.string() })
 const SequenceRowSchema = z.object({ latest: z.number() })
+const OwnerRowSchema = z.object({ tenant_id: z.string() })
 
 export type CreateRunResult =
   | { kind: 'created'; runId: RunId; event: FleetEvent }
@@ -45,6 +47,12 @@ export class FleetJournal {
         request_hash TEXT NOT NULL,
         run_id TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS fleet_run_owners (
+        run_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
     `)
   }
 
@@ -56,18 +64,22 @@ export class FleetJournal {
     runId: RunId
     input: CreateRunInput
     idempotencyKey: string | null
+    actor: FleetActor
   }): CreateRunResult {
     const requestHash = createHash('sha256')
       .update(JSON.stringify(args.input))
       .digest('hex')
     this.#database.exec('BEGIN IMMEDIATE')
     try {
-      if (args.idempotencyKey) {
+      const scopedIdempotencyKey = args.idempotencyKey
+        ? `${args.actor.tenantId}:${args.idempotencyKey}`
+        : null
+      if (scopedIdempotencyKey) {
         const existingRaw = this.#database
           .prepare(
             'SELECT request_hash, run_id FROM fleet_idempotency WHERE idempotency_key = ?',
           )
-          .get(args.idempotencyKey)
+          .get(scopedIdempotencyKey)
         if (existingRaw) {
           const existing = ExistingIdempotencySchema.parse(existingRaw)
           this.#database.exec('COMMIT')
@@ -86,12 +98,17 @@ export class FleetJournal {
       this.#database
         .prepare('INSERT INTO fleet_events (run_id, sequence, event_json) VALUES (?, ?, ?)')
         .run(args.runId, event.sequence, JSON.stringify(event))
-      if (args.idempotencyKey) {
+      this.#database
+        .prepare(
+          'INSERT INTO fleet_run_owners (run_id, tenant_id, user_id, created_at) VALUES (?, ?, ?, ?)',
+        )
+        .run(args.runId, args.actor.tenantId, args.actor.userId, event.at)
+      if (scopedIdempotencyKey) {
         this.#database
           .prepare(
             'INSERT INTO fleet_idempotency (idempotency_key, request_hash, run_id) VALUES (?, ?, ?)',
           )
-          .run(args.idempotencyKey, requestHash, args.runId)
+          .run(scopedIdempotencyKey, requestHash, args.runId)
       }
       this.#database.exec('COMMIT')
       this.#notify(args.runId)
@@ -141,6 +158,13 @@ export class FleetJournal {
     return z.array(EventRowSchema).parse(rows).map((row) =>
       parseFleetEvent(JSON.parse(row.event_json)),
     )
+  }
+
+  ownsRun(runId: RunId, tenantId: string): boolean {
+    const row = this.#database
+      .prepare('SELECT tenant_id FROM fleet_run_owners WHERE run_id = ?')
+      .get(runId)
+    return row ? OwnerRowSchema.parse(row).tenant_id === tenantId : false
   }
 
   subscribe(runId: RunId, callback: () => void): () => void {

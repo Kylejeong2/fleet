@@ -17,9 +17,15 @@ export type ReservationResult =
   | { kind: 'conflict' }
 
 export interface IdempotencyStore {
-  reserve(key: string, input: CreateRunInput): Promise<ReservationResult>
-  commit(key: string, token: string, requestHash: string, runId: RunId): Promise<void>
-  release(key: string, token: string, requestHash: string): Promise<void>
+  reserve(tenantId: string, key: string, input: CreateRunInput): Promise<ReservationResult>
+  commit(
+    tenantId: string,
+    key: string,
+    token: string,
+    requestHash: string,
+    runId: RunId,
+  ): Promise<void>
+  release(tenantId: string, key: string, token: string, requestHash: string): Promise<void>
 }
 
 type RedisCommand = (command: Array<string | number>) => Promise<unknown>
@@ -47,7 +53,11 @@ return 0
 export class RedisIdempotencyStore implements IdempotencyStore {
   constructor(private readonly command: RedisCommand) {}
 
-  async reserve(key: string, input: CreateRunInput): Promise<ReservationResult> {
+  async reserve(
+    tenantId: string,
+    key: string,
+    input: CreateRunInput,
+  ): Promise<ReservationResult> {
     const requestHash = hashInput(input)
     const token = crypto.randomUUID()
     const pending = JSON.stringify({ state: 'pending', requestHash, token })
@@ -55,7 +65,7 @@ export class RedisIdempotencyStore implements IdempotencyStore {
       'EVAL',
       reserveScript,
       1,
-      redisKey(key),
+      redisKey(tenantId, key),
       pending,
       RESERVATION_TTL_SECONDS,
     ])
@@ -68,6 +78,7 @@ export class RedisIdempotencyStore implements IdempotencyStore {
   }
 
   async commit(
+    tenantId: string,
     key: string,
     token: string,
     requestHash: string,
@@ -79,7 +90,7 @@ export class RedisIdempotencyStore implements IdempotencyStore {
       'EVAL',
       commitScript,
       1,
-      redisKey(key),
+      redisKey(tenantId, key),
       pending,
       committed,
       RESERVATION_TTL_SECONDS,
@@ -89,12 +100,17 @@ export class RedisIdempotencyStore implements IdempotencyStore {
     }
   }
 
-  async release(key: string, token: string, requestHash: string): Promise<void> {
+  async release(
+    tenantId: string,
+    key: string,
+    token: string,
+    requestHash: string,
+  ): Promise<void> {
     await this.command([
       'EVAL',
       releaseScript,
       1,
-      redisKey(key),
+      redisKey(tenantId, key),
       JSON.stringify({ state: 'pending', requestHash, token }),
     ])
   }
@@ -122,7 +138,8 @@ export const createRedisIdempotencyStore = (environment: NodeJS.ProcessEnv): Ide
   })
 }
 
-const redisKey = (key: string): string => `fleet:idempotency:${key}`
+const redisKey = (tenantId: string, key: string): string =>
+  `fleet:idempotency:${createHash('sha256').update(tenantId).digest('hex').slice(0, 24)}:${key}`
 
 const hashInput = (input: CreateRunInput): string =>
   createHash('sha256').update(JSON.stringify(input)).digest('hex')

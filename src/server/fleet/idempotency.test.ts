@@ -16,10 +16,12 @@ describe('Redis idempotency reservations', () => {
       request[4],
     ])
     const store = new RedisIdempotencyStore(command)
-    const reservation = await store.reserve('request-1', input)
+    const reservation = await store.reserve('tenant-1', 'request-1', input)
     expect(reservation.kind).toBe('reserved')
     expect(command).toHaveBeenCalledOnce()
-    expect(command.mock.calls[0]?.[0]).toContain('fleet:idempotency:request-1')
+    expect(String(command.mock.calls[0]?.[0][3])).toMatch(
+      /^fleet:idempotency:[0-9a-f]{24}:request-1$/,
+    )
   })
 
   it('returns a previously committed workflow for the same request', async () => {
@@ -27,12 +29,16 @@ describe('Redis idempotency reservations', () => {
       1,
       request[4],
     ])
-    const first = await new RedisIdempotencyStore(firstCommand).reserve('request-2', input)
+    const first = await new RedisIdempotencyStore(firstCommand).reserve(
+      'tenant-1',
+      'request-2',
+      input,
+    )
     if (first.kind !== 'reserved') throw new Error('Expected a reservation')
     const runId = parseRunId('wrun_01JNXQEH6Z7R4D9ATK2M8CPV5B')
     const existing = JSON.stringify({ state: 'committed', requestHash: first.requestHash, runId })
     const store = new RedisIdempotencyStore(async () => [0, existing])
-    await expect(store.reserve('request-2', input)).resolves.toEqual({
+    await expect(store.reserve('tenant-1', 'request-2', input)).resolves.toEqual({
       kind: 'existing',
       runId,
     })
@@ -45,6 +51,6 @@ describe('Redis idempotency reservations', () => {
       token: crypto.randomUUID(),
     })
     const store = new RedisIdempotencyStore(async () => [0, existing])
-    await expect(store.reserve('request-3', input)).resolves.toEqual({ kind: 'conflict' })
+    await expect(store.reserve('tenant-1', 'request-3', input)).resolves.toEqual({ kind: 'conflict' })
   })
 })
