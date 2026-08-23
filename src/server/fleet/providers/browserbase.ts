@@ -1,6 +1,6 @@
 import { lookup } from 'node:dns/promises'
 import { z } from 'zod'
-import { HttpUrlSchema, isPublicIpAddress } from '../../../lib/fleet-protocol'
+import { HttpUrlSchema, isPublicIpAddress } from '@fleet/client'
 import type { ResearchToolCall, ResearchToolResult, ResearchTools } from '../ports'
 
 const SearchResponseSchema = z.object({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createRunId, type CreateRunInput } from '../../lib/fleet-protocol'
+import { createRunId, type CreateRunInput } from '@fleet/client'
 import { RunCoordinator } from './coordinator'
 import { FleetJournal } from './journal'
 import type {

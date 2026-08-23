@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { parseRunId, type CreateRunInput, type RunId } from '../../lib/fleet-protocol'
+import { parseRunId, type CreateRunInput, type RunId } from '@fleet/client'
 
 const StoredReservationSchema = z.discriminatedUnion('state', [
   z.object({ state: z.literal('pending'), requestHash: z.string(), token: z.string() }),

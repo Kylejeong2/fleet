@@ -5,7 +5,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import type { AgentSnapshot, RunSnapshot } from '../lib/fleet-protocol'
+import type { AgentSnapshot, RunSnapshot } from '@fleet/client'
 
 const MAX_VISIBLE_BOATS = 50
 const FLEET_REVEAL_DELAY_SECONDS = .18

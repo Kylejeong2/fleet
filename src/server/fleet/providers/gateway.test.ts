@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createRunId, createAgentId } from '../../../lib/fleet-protocol'
+import { createRunId, createAgentId } from '@fleet/client'
 import {
   buildSynthesisPrompt,
   mapGatewayStream,

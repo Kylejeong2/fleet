@@ -1,4 +1,4 @@
-import type { AgentId, SearchResult } from '../../lib/fleet-protocol'
+import type { AgentId, SearchResult } from '@fleet/client'
 
 export type ResearchToolCall =
   | { kind: 'search'; query: string; reasoning?: string }

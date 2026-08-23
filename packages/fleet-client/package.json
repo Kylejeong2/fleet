@@ -1,0 +1,21 @@
+{
+  "name": "@fleet/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "ipaddr.js": "2.5.0",
+    "zod": "4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "typescript": "6.0.2",
+    "vitest": "3.2.7"
+  }
+}

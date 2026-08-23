@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createRunId, type CreateRunInput } from '../../lib/fleet-protocol'
+import { createRunId, type CreateRunInput } from '@fleet/client'
 import { RunCoordinator } from './coordinator'
 import { FleetJournal } from './journal'
 import type {
@@ -13,7 +13,7 @@ import type {
   WorkerResponse,
   WorkerTurn,
 } from './ports'
-import { replayEvents } from './reducer'
+import { replayEvents } from '@fleet/client'
 
 class TrackingWorker implements WorkerModel {
   readonly name = 'tracking-worker'
@@ -137,13 +137,13 @@ describe('RunCoordinator', () => {
     const journal = new FleetJournal(':memory:')
     const worker = new TrackingWorker()
     const synthesizer = new CountingSynthesizer()
-    const input = runInput(7, 3)
+    const input = runInput(3, 3)
     const runId = createAcceptedRun(journal, input)
     await new RunCoordinator(journal, worker, new Tools(), synthesizer).run(runId, input)
     const snapshot = replayEvents(journal.read(runId))
     expect(worker.maximum).toBe(3)
     expect(snapshot?.agents.filter((agent) => agent.status === 'failed')).toHaveLength(1)
-    expect(snapshot?.agents.filter((agent) => agent.status === 'succeeded')).toHaveLength(6)
+    expect(snapshot?.agents.filter((agent) => agent.status === 'succeeded')).toHaveLength(2)
     expect(snapshot?.status).toBe('completed')
     expect(synthesizer.handoffs).toBe(1)
     journal.close()

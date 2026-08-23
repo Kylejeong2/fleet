@@ -10,8 +10,8 @@ import {
   parseRunId,
   type FleetEvent,
   type RunSnapshot,
-} from '../../lib/fleet-protocol'
-import { reduceEvent, replayEvents } from './reducer'
+} from '@fleet/client'
+import { reduceEvent, replayEvents } from '@fleet/client'
 
 const acceptedEvent = (): Extract<FleetEvent, { kind: 'run.accepted' }> => ({
   kind: 'run.accepted',

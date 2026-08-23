@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createAgentId, createRunId } from '../../../lib/fleet-protocol'
+import { createAgentId, createRunId } from '@fleet/client'
 import { SailWorkerModel } from './sail'
 
 afterEach(() => vi.unstubAllGlobals())

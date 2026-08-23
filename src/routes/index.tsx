@@ -38,8 +38,8 @@ import {
   type FleetEvent,
   type RunSnapshot,
   type ToolTrace,
-} from '../lib/fleet-protocol'
-import { reduceEvent } from '../server/fleet/reducer'
+} from '@fleet/client'
+import { reduceEvent } from '@fleet/client'
 
 const ResearchOcean = lazy(async () => {
   const ocean = await import('./-research-ocean')

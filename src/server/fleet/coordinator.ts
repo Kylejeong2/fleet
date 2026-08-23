@@ -5,7 +5,7 @@ import {
   type CreateRunInput,
   type RunId,
   type ToolTrace,
-} from '../../lib/fleet-protocol'
+} from '@fleet/client'
 import { FleetJournal } from './journal'
 import { fleetLog } from './log'
 import type {

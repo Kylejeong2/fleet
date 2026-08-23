@@ -7,12 +7,12 @@ import {
   type FleetEventDraft,
   type RunId,
   type RunSnapshot,
-} from '../../lib/fleet-protocol'
+} from '@fleet/client'
 import {
   createRedisIdempotencyStore,
   type IdempotencyStore,
 } from './idempotency'
-import { replayEvents } from './reducer'
+import { replayEvents } from '@fleet/client'
 import {
   getFleetService,
   IdempotencyConflictError,

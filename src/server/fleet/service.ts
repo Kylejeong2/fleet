@@ -5,11 +5,11 @@ import {
   type RunId,
   type RunProfile,
   type RunSnapshot,
-} from '../../lib/fleet-protocol'
+} from '@fleet/client'
 import { RunCoordinator } from './coordinator'
 import { createFleetDependencies, ProfileNotReadyError } from './dependencies'
 import { FleetJournal } from './journal'
-import { replayEvents } from './reducer'
+import { replayEvents } from '@fleet/client'
 
 export class IdempotencyConflictError extends Error {}
 export class RunNotFoundError extends Error {}
@@ -60,9 +60,10 @@ export const createFleetService = (args?: {
   databasePath?: string
   environment?: NodeJS.ProcessEnv
 }): FleetService => {
-  const journal = new FleetJournal(args?.databasePath)
+  const environment = args?.environment ?? process.env
+  const journal = new FleetJournal(args?.databasePath ?? environment.FLEET_DATABASE_PATH)
   return new FleetService(journal, (profile) => {
-    const dependencies = createFleetDependencies(profile, args?.environment)
+    const dependencies = createFleetDependencies(profile, environment)
     return new RunCoordinator(journal, dependencies.worker, dependencies.tools, dependencies.synthesizer)
   })
 }

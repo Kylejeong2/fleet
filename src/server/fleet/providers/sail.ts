@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { HttpUrlSchema } from '../../../lib/fleet-protocol'
+import { HttpUrlSchema } from '@fleet/client'
 import { fleetLog } from '../log'
 import type { WorkerModel, WorkerResponse, WorkerTurn } from '../ports'
 

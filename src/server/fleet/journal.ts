@@ -10,7 +10,7 @@ import {
   parseFleetEvent,
   parseRunId,
   type RunId,
-} from '../../lib/fleet-protocol'
+} from '@fleet/client'
 
 const ExistingIdempotencySchema = z.object({
   request_hash: z.string(),

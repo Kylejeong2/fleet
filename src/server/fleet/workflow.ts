@@ -13,7 +13,7 @@ import {
   type FleetEventDraft,
   type RunId,
   type ToolTrace,
-} from '../../lib/fleet-protocol'
+} from '@fleet/client'
 import { planResearchLenses } from './coordinator'
 import { createFleetDependencies } from './dependencies'
 import { fleetLog } from './log'

@@ -12,9 +12,14 @@
     "benchmark:threejs": "node scripts/benchmark-threejs.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run src --passWithNoTests",
-    "check": "pnpm typecheck && pnpm test && pnpm build"
+    "dev:slack": "pnpm --filter @fleet/slack dev",
+    "test:slack": "pnpm --filter @fleet/client test && pnpm --filter @fleet/slack test",
+    "test:slack-backend": "tsx scripts/test-slack-backend.ts",
+    "build:slack": "pnpm --filter @fleet/client build && pnpm --filter @fleet/slack build",
+    "check": "pnpm typecheck && pnpm test && pnpm build && pnpm --filter @fleet/client typecheck && pnpm --filter @fleet/client test && pnpm --filter @fleet/client build && pnpm --filter @fleet/slack typecheck && pnpm --filter @fleet/slack test && pnpm --filter @fleet/slack build"
   },
   "dependencies": {
+    "@fleet/client": "workspace:*",
     "@radix-ui/react-select": "2.3.7",
     "@tanstack/react-router": "1.170.29",
     "@tanstack/react-start": "1.168.46",
@@ -37,12 +42,13 @@
     "@types/three": "0.185.4",
     "@vitejs/plugin-react": "6.0.1",
     "nitro": "3.0.260311-beta",
+    "tsx": "4.20.6",
     "typescript": "6.0.2",
     "vite": "8.2.1",
     "vitest": "3.2.7"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0 <26"
   },
   "pnpm": {
     "overrides": {

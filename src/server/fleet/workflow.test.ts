@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseRunId } from '../../lib/fleet-protocol'
+import { parseRunId } from '@fleet/client'
 import { createAssignments, createBatches } from './workflow'
 
 describe('Fleet workflow planning', () => {

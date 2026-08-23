@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { RunProfile } from '../../lib/fleet-protocol'
+import type { RunProfile } from '@fleet/client'
 import type { ResearchTools, Synthesizer, WorkerModel } from './ports'
 import { BrowserbaseResearchTools } from './providers/browserbase'
 import {

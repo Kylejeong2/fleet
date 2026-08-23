@@ -1,0 +1,26 @@
+{
+  "name": "@fleet/slack",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12.0 <26" },
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc --noEmit && esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/main.js --external:@slack/bolt"
+  },
+  "dependencies": {
+    "@fleet/client": "workspace:*",
+    "@slack/bolt": "4.6.0",
+    "zod": "4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "esbuild": "0.28.2",
+    "tsx": "4.20.6",
+    "typescript": "6.0.2",
+    "vitest": "3.2.7"
+  }
+}

@@ -1,4 +1,4 @@
-import type { FleetEvent, RunId } from '../../lib/fleet-protocol'
+import type { FleetEvent, RunId } from '@fleet/client'
 import type { FleetService } from './service'
 
 const encoder = new TextEncoder()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createRunId, type CreateRunInput } from '../../lib/fleet-protocol'
+import { createRunId, type CreateRunInput } from '@fleet/client'
 import { FleetJournal } from './journal'
 
 const input: CreateRunInput = {
@@ -26,7 +26,7 @@ describe('FleetJournal', () => {
     journal.createRun({ runId: createRunId(), input, idempotencyKey: 'conflict' })
     const result = journal.createRun({
       runId: createRunId(),
-      input: { ...input, agentCount: 4 },
+      input: { ...input, question: 'What conflicting evidence exists?' },
       idempotencyKey: 'conflict',
     })
     expect(result.kind).toBe('conflict')

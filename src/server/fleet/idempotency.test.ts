@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { parseRunId, type CreateRunInput } from '../../lib/fleet-protocol'
+import { parseRunId, type CreateRunInput } from '@fleet/client'
 import { RedisIdempotencyStore } from './idempotency'
 
 const input: CreateRunInput = {

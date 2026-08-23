@@ -3,7 +3,7 @@ import type {
   FleetEvent,
   RunSnapshot,
   ToolTrace,
-} from '../../lib/fleet-protocol'
+} from './protocol.js'
 
 export type ReplayResult =
   | { kind: 'applied'; snapshot: RunSnapshot }

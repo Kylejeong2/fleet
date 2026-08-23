@@ -2,6 +2,8 @@
 
 Fleet exposes a small versioned contract under `/api/v1`. JSON request and response bodies are validated at the boundary.
 
+The browser may continue calling these routes without an `Authorization` header. The Slack worker sends `Authorization: Bearer $FLEET_SLACK_SERVICE_TOKEN` on create, snapshot, and SSE requests. Any supplied invalid bearer receives `401`; the valid Slack principal is limited to at most three agents and three concurrent agents before runtime creation.
+
 ## Create a run
 
 ```http
