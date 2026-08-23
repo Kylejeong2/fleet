@@ -6,6 +6,7 @@ import type { SlackMention } from './mention.js'
 type DeliveryBase = Readonly<{
   key: string
   mention: SlackMention
+  contextText: string | null
   cursor: number
   statusTs: string | null
 }>
@@ -22,6 +23,7 @@ const RowSchema = z.object({
   author_id: z.string(), question: z.string(), phase: z.enum(['queued', 'following', 'terminal-pending', 'delivered', 'failed']),
   run_id: z.string().nullable(), cursor: z.number().int().nonnegative(), status_ts: z.string().nullable(),
   terminal_text: z.string().nullable(), public_error: z.string().nullable(),
+  context_text: z.string().nullable(),
 })
 
 const parseRow = (input: unknown): Delivery => {
@@ -30,7 +32,7 @@ const parseRow = (input: unknown): Delivery => {
     key: row.event_key, eventId: row.event_id, teamId: row.team_id, channelId: row.channel_id,
     eventTs: row.event_ts, threadTs: row.thread_ts, authorId: row.author_id, question: row.question,
   }
-  const base = { key: row.event_key, mention, cursor: row.cursor, statusTs: row.status_ts }
+  const base = { key: row.event_key, mention, contextText: row.context_text, cursor: row.cursor, statusTs: row.status_ts }
   if (row.phase === 'queued') {
     if (row.run_id !== null) throw new Error('Invalid queued delivery row')
     return { ...base, phase: 'queued', runId: null }
@@ -59,9 +61,13 @@ export class DeliveryStore {
       event_key TEXT PRIMARY KEY, event_id TEXT NOT NULL, team_id TEXT NOT NULL, channel_id TEXT NOT NULL,
       event_ts TEXT NOT NULL, thread_ts TEXT NOT NULL, author_id TEXT NOT NULL, question TEXT NOT NULL,
       phase TEXT NOT NULL, run_id TEXT, cursor INTEGER NOT NULL DEFAULT 0, status_ts TEXT,
-      terminal_text TEXT, public_error TEXT,
+      terminal_text TEXT, public_error TEXT, context_text TEXT,
       CHECK (phase IN ('queued','following','terminal-pending','delivered','failed'))
     )`)
+    const columns = this.database.prepare('PRAGMA table_info(deliveries)').all() as Array<{ name: string }>
+    if (!columns.some((column) => column.name === 'context_text')) {
+      this.database.exec('ALTER TABLE deliveries ADD COLUMN context_text TEXT')
+    }
   }
   close() { this.database.close() }
   accept(mention: SlackMention): Delivery {
@@ -83,6 +89,10 @@ export class DeliveryStore {
   }
   following(key: string, runId: RunId) {
     this.database.prepare("UPDATE deliveries SET phase='following', run_id=? WHERE event_key=? AND phase='queued'").run(runId, key)
+  }
+  contextLoaded(key: string, contextText: string) {
+    const result = this.database.prepare("UPDATE deliveries SET context_text=? WHERE event_key=? AND phase='queued' AND context_text IS NULL").run(contextText, key)
+    if (result.changes !== 1) throw new Error('Slack context can be loaded only once before a run starts')
   }
   statusPublished(key: string, statusTs: string) {
     this.database.prepare("UPDATE deliveries SET status_ts=? WHERE event_key=? AND phase='following' AND status_ts IS NULL").run(statusTs, key)

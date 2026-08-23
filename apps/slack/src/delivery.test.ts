@@ -4,6 +4,7 @@ import { DeliveryService } from './delivery.js'
 import { DeliveryStore } from './delivery-store.js'
 import type { SlackMention } from './mention.js'
 import { renderProgress, splitSlackAnswer, type SlackThreadPublisher } from './slack-thread.js'
+import type { SlackContextReader } from './thread-context.js'
 
 const runId = RunIdSchema.parse('123e4567-e89b-42d3-a456-426614174000')
 const mention: SlackMention = {
@@ -15,6 +16,7 @@ const snapshot: RunSnapshot = {
   orchestratorTrace: [], orchestratorReasoning: 'private chain of thought', agents: [], partialAnswer: '',
   finalAnswer: 'final answer', synthesizer: null, error: null, latestSequence: 2,
 }
+const context: SlackContextReader = { read: vi.fn(async () => 'Earlier Slack message') }
 
 describe('DeliveryService', () => {
   it('persists terminal-pending before final Slack delivery and uses only the originating thread', async () => {
@@ -33,12 +35,15 @@ describe('DeliveryService', () => {
       },
       async postAnswerRemainder(target) { calls.push({ kind: 'remainder', threadTs: target.threadTs }) },
     }
-    const service = new DeliveryService(store, fleet, slack, { profile: 'development', agentCount: 3, concurrency: 3 })
+    const service = new DeliveryService(store, fleet, slack, context, { profile: 'development', agentCount: 3, concurrency: 3 })
     service.accept(mention)
     await service.idle()
     expect(store.get(mention.key).phase).toBe('delivered')
     expect(calls.every((call) => call.threadTs === '99.1')).toBe(true)
-    expect(fleet.createRun).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'slack:v1:T0BS0KMHZCM:Ev1' }))
+    expect(fleet.createRun).toHaveBeenCalledWith(expect.objectContaining({
+      idempotencyKey: 'slack:v1:T0BS0KMHZCM:Ev1',
+      question: expect.stringContaining('Earlier Slack message'),
+    }))
     store.close()
   })
 
@@ -71,7 +76,7 @@ describe('DeliveryService', () => {
       async updateStatus(_target, text) { updates.push(text) },
       async postAnswerRemainder() {},
     }
-    const service = new DeliveryService(store, fleet, slack, { profile: 'development', agentCount: 3, concurrency: 3 })
+    const service = new DeliveryService(store, fleet, slack, context, { profile: 'development', agentCount: 3, concurrency: 3 })
     service.accept(mention)
     await service.idle()
     expect(updates).toEqual(['final answer'])
@@ -99,7 +104,7 @@ describe('DeliveryService', () => {
       async updateStatus() {},
       async postAnswerRemainder() {},
     }
-    const service = new DeliveryService(store, fleet, slack, { profile: 'development', agentCount: 3, concurrency: 3 })
+    const service = new DeliveryService(store, fleet, slack, context, { profile: 'development', agentCount: 3, concurrency: 3 })
     service.accept(mention)
     await Promise.resolve()
     const second = { ...mention, key: 'T0BS0KMHZCM:Ev2', eventId: 'Ev2', eventTs: '200.1', threadTs: '200.1' }

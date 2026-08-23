@@ -2,10 +2,10 @@
 spec_format_version: "0.1"
 title: "Fleet Slack App"
 artifact_type: "prd"
-spec_revision: 1
+spec_revision: 2
 author: "Kyle Jeong"
 created_at: "2026-08-23T00:00:00Z"
-updated_at: "2026-08-23T00:00:00Z"
+updated_at: "2026-08-23T20:00:00Z"
 linked_github_repo: "Kylejeong2/fleet"
 applies_to:
   - path: "apps/slack/"
@@ -19,11 +19,11 @@ Fleet users in Slack cannot start and follow a durable research run without leav
 
 ## Hypothesis
 
-If a tagged Slack message can launch Fleet through its public HTTP API and receive visible progress plus a terminal answer in the originating thread, users will complete research requests from Slack without opening the Fleet frontend.
+If a tagged Slack message can launch Fleet with its conversation context and receive visible progress plus a terminal answer in the originating thread, users will complete research requests from Slack without opening the Fleet frontend.
 
 ## Product summary
 
-This release adds a separately deployable Socket Mode Slack worker. It accepts tagged messages from one approved workspace and channel, calls Fleet through an authenticated typed HTTP client, follows replayable events, and updates one threaded Slack response through terminal completion.
+This release adds a separately deployable Socket Mode Slack worker. It accepts tagged messages from one approved workspace and channel, reads bounded context from that channel or thread, calls Fleet through an authenticated typed HTTP client, follows replayable events, and updates one threaded Slack response through terminal completion.
 
 ## Scope
 
@@ -31,6 +31,7 @@ This release adds a separately deployable Socket Mode Slack worker. It accepts t
 in:
   - Accept only app mentions from Slack team T0BS0KMHZCM and channel C0BS2HGNHT8.
   - Reply only in the originating Slack thread with visible public progress and a terminal result.
+  - Read up to 15 recent messages from the approved channel for a top-level mention or from the originating thread for a threaded mention.
   - Cap Slack-initiated runs at three research agents and three concurrent agents in both worker configuration and backend authorization.
   - Persist delivery state so duplicate Slack events and worker restarts converge on one Fleet run and one Slack thread.
   - Package the Slack worker and Fleet HTTP client as independently testable workspace packages.
@@ -39,8 +40,6 @@ out:
   - Change Fleet research quality, provider selection, or the frontend experience.
   - Add multi-replica Slack worker scaling or require Redis for Slack delivery state.
   - Claim exactly-once Slack message creation across a crash after Slack accepts a post but before local state commits.
-cut:
-  - Read Slack channel history to reconcile the initial-message crash window, because that would require broader Slack permissions for a one-channel first release.
 ```
 
 ## Acceptance criteria
@@ -49,7 +48,7 @@ cut:
 - id: AC-1
   criterion: Only an app_mention from team T0BS0KMHZCM and channel C0BS2HGNHT8 can create durable delivery state, call Fleet, or post to Slack.
 - id: AC-2
-  criterion: An accepted mention receives progress and exactly one terminal result in its originating thread, with no top-level bot response and no raw model reasoning or fetched content.
+  criterion: An accepted mention receives bounded approved-channel or thread context, progress, and exactly one terminal result in its originating thread, with no top-level bot response and no raw model reasoning or fetched content.
 - id: AC-3
   criterion: Slack worker configuration rejects agent or concurrency values outside one through three, and the authenticated Fleet service principal rejects any Slack request above three before runtime creation.
 - id: AC-4
@@ -80,11 +79,11 @@ cut:
 
 ## Solution
 
-The repository becomes a pnpm workspace while the existing TanStack Start application remains at the root. A shared Fleet client owns HTTP status handling and SSE recovery. A Socket Mode worker owns exact-channel admission, a typed delivery state machine, SQLite persistence, Slack rendering, and process recovery. Fleet routes map one bearer credential to a Slack service principal whose run limit is three.
+The repository becomes a pnpm workspace while the existing TanStack Start application remains at the root. A shared Fleet client owns HTTP status handling and SSE recovery. A Socket Mode worker owns exact-channel admission, bounded Slack context loading, a typed delivery state machine, SQLite persistence, Slack rendering, and process recovery. Fleet routes map one bearer credential to a Slack service principal whose run limit is three.
 
 ## Risks
 
-Slack message creation and SQLite commits cannot form one transaction. A crash in the narrow interval after Slack accepts the first reply and before its timestamp commits can create a duplicate status message after restart. This release documents that at-least-once edge and keeps all later progress and terminal writes idempotent by updating the persisted message timestamp.
+Slack message creation and SQLite commits cannot form one transaction. A crash in the narrow interval after Slack accepts the first reply and before its timestamp commits can create a duplicate status message after restart. This release documents that at-least-once edge and keeps all later progress and terminal writes idempotent by updating the persisted message timestamp. Slack context becomes part of the Fleet question and can appear in Fleet run storage, so the app reads only the approved channel and caps each request at 15 messages and 12,000 characters.
 
 ## Rollout
 

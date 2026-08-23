@@ -5,6 +5,7 @@ import { DeliveryService } from './delivery.js'
 import { DeliveryStore } from './delivery-store.js'
 import { parseAllowedMention, type SlackMention } from './mention.js'
 import { createSlackThreadPublisher } from './slack-thread.js'
+import { createSlackContextReader } from './thread-context.js'
 
 export const createMentionHandler = (
   botUserId: string,
@@ -29,6 +30,7 @@ export const createSlackFleetApp = (config: SlackFleetConfig) => {
     store,
     fleet,
     createSlackThreadPublisher(bolt.client),
+    createSlackContextReader(bolt.client),
     {
       profile: config.FLEET_SLACK_PROFILE,
       agentCount: config.FLEET_SLACK_AGENT_COUNT,

@@ -7,6 +7,7 @@ import {
   type SlackThreadPublisher,
   type ThreadTarget,
 } from './slack-thread.js'
+import { questionWithSlackContext, type SlackContextReader } from './thread-context.js'
 
 export class DeliveryService {
   private processing: Promise<void> | null = null
@@ -14,6 +15,7 @@ export class DeliveryService {
     private readonly store: DeliveryStore,
     private readonly fleet: FleetClient,
     private readonly slack: SlackThreadPublisher,
+    private readonly context: SlackContextReader,
     private readonly execution: SlackExecution,
   ) {}
 
@@ -54,8 +56,13 @@ export class DeliveryService {
       return
     }
     if (delivery.phase === 'queued') {
+      if (delivery.contextText === null) {
+        const contextText = await this.context.read(delivery.mention)
+        this.store.contextLoaded(delivery.key, contextText)
+        delivery = this.store.get(delivery.key)
+      }
       const snapshot = await this.fleet.createRun({
-        question: delivery.mention.question,
+        question: questionWithSlackContext(delivery.mention, delivery.contextText ?? ''),
         idempotencyKey: fleetIdempotencyKey(delivery.mention),
         execution: this.execution,
       })
