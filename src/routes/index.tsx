@@ -564,6 +564,7 @@ function WelcomeComposer(props: {
             className="agent-count-control"
             onValueChange={(value) => props.setAgentCount(Number(value))}
           />
+          <span className="composer-hint">Enter to launch · Shift+Enter for a new line</span>
           <button
             className="launch-button"
             type="submit"
